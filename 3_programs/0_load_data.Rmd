@@ -1,0 +1,30 @@
+---
+title: "Unzip Add Health Data"
+output: html_notebook
+author: Jennah Gosciak
+---
+
+```{r}
+library(tidyverse)
+library(fs)
+
+# 1. unzip data
+zip_path <- "../0_data/ICPSR_21600-V25.zip"
+unzip(zip_path, exdir= "../0_data", overwrite=T)
+```
+
+```{r}
+folder_path <- "../0_data/ICPSR_21600"
+list.files(folder_path)
+```
+```{r}
+list.files(path(folder_path, "DS0002"))
+```
+```{r}
+load(file=path(folder_path, "DS0002", "21600-0002-Data.rda"))
+da21600.0002 %>% 
+  head()
+```
+
+
+
