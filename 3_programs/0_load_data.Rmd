@@ -1,30 +1,97 @@
 ---
-title: "Unzip Add Health Data"
+title: "Load OZs, Census Data, and LODES data"
 output: html_notebook
 author: Jennah Gosciak
 ---
 
-```{r}
+```{r, setup}
 library(tidyverse)
 library(fs)
-
-# 1. unzip data
-zip_path <- "../0_data/ICPSR_21600-V25.zip"
-unzip(zip_path, exdir= "../0_data", overwrite=T)
+library(tidycensus)
+library(lehdr)
+library(sf)
+# make sure to define/create this folder!
+data_dir <- "../0_data"
 ```
 
 ```{r}
-folder_path <- "../0_data/ICPSR_21600"
-list.files(folder_path)
+# load workplace characteristics
+wac_df <- grab_lodes(state = c("ny", "ri", "or", "va", "ca"),
+                    year = c(2016, 2019), lodes_type = "wac", job_type = "JT00", segment = "S000", agg_geo = "tract")
+
+wac_df
+
+rac_df <- grab_lodes(state = c("ny", "ri", "or", "va", "ca"),
+                    year = c(2016, 2019), lodes_type = "rac", job_type = "JT00", segment = "S000", agg_geo = "tract")
+
+rac_df
 ```
 ```{r}
-list.files(path(folder_path, "DS0002"))
+# load acs data
+get_acs_yr <- function(yr){
+  get_acs(geography = "tract", 
+              variables = c(medincome = "B19013_001"), 
+              # random array of states for now
+              state = c("ny", "ri", "or", "va", "ca", "wa", "mt", "id"), 
+              year = yr) %>% 
+  mutate(year = yr)
+}
+
+acs <- map_dfr(c(2020, 2016, 2011), ~get_acs_yr(.))
+acs
 ```
 ```{r}
-load(file=path(folder_path, "DS0002", "21600-0002-Data.rda"))
-da21600.0002 %>% 
+# load oz data
+########################################
+# Downloading spatial data from CDFI
+########################################
+
+zipurl <- "https://www.cdfifund.gov/sites/cdfi/files/documents/opportunity-zones=8764.-9-10-2019.zip"
+zipdir <- str_glue("{data_dir}")
+zipname <- "opportunity_zones.zip"
+fname <- "opportunity_zones"
+  
+# write to drive
+download.file(zipurl, str_glue("{zipdir}/{zipname}"))
+
+# unzip
+unzip(str_glue("{zipdir}/{zipname}"),
+      exdir=str_glue("{zipdir}/{fname}/"))
+
+########################################
+# Loading spatial data
+########################################
+
+shpfile <- dir_ls(str_glue("{zipdir}/{fname}/"), regexp="[.]shp$")
+oz_shp <- st_read(shpfile)
+oz_shp %>% 
+  as.data.frame() %>% 
   head()
 ```
+```{r}
+# identify tracts that are ozs
+acs_oz <- acs %>% 
+  left_join(oz_shp %>% 
+               as.data.frame() %>% 
+              select(CENSUSTRAC) %>% 
+              mutate(oz_designation = 1) , by = c("GEOID" = "CENSUSTRAC")) %>% 
+  mutate(oz_designation = if_else(is.na(oz_designation), 0, oz_designation))
+
+acs_oz
+```
+```{r}
+# merge to lodes data
+acs_oz %>% 
+  # note: years are going to be duplicated here/not totally getting merged
+  full_join(wac_df, by = c("GEOID" = "w_tract"))
+```
+
+
+
+
+
+
+
 
 
 
