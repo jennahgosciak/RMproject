@@ -78,26 +78,29 @@ plot_df <- function(df, column, desc) {
   df_sum %>% 
     print()
   
-  df_sum %>% 
+  plot <- df_sum %>% 
     ggplot() +
     geom_line(aes(x = year, y = y,
                   color = designated_desc, group = designated_desc)) +
     scale_y_continuous(limits = c(0, 4000)) +
     labs(x = "Year", y = desc, color = "") +
     theme_classic() 
+  
+  print(plot)
+  ggsave(str_c("../3_output/", desc, ".png"))
 }
 
 wac_oz %>% 
-  plot_df(C000, "Average number of jobs")
+  plot_df(C000, "Average number of jobs (WAC)")
 
 wac_oz %>% 
-  plot_df(CA01, "Average number of jobs, age less than 29")
+  plot_df(CA01, "Average number of jobs, age less than 29 (WAC)")
 
 wac_oz %>% 
-  plot_df(CE01, "Average number of jobs, less than $1250 a month")
+  plot_df(CE01, "Average number of jobs, less than $1250 a month (WAC)")
 
 wac_oz %>% 
-  plot_df(CE03, "Average number of jobs, greater than $3333 a month")
+  plot_df(CE03, "Average number of jobs, greater than $3333 a month (WAC)")
 ```
 ```{r}
 # load residence area characteristics
@@ -108,6 +111,36 @@ rac_oz_17 <- get_lodes_yr(states, 2017, oz, "rac")
 rac_oz_18 <- get_lodes_yr(states, 2018, oz, "rac")
 rac_oz_19 <- get_lodes_yr(states, 2019, oz, "rac")
 ```
+```{r}
+rac_oz <- bind_rows(rac_oz_14, rac_oz_15, rac_oz_16, rac_oz_17, rac_oz_18, rac_oz_19)
+rac_oz %>% 
+  write_csv(path(data_dir, "rac_oz.csv"))
+```
+
+```{r}
+rac_oz %>% 
+  plot_df(C000, "Average number of jobs (RAC)")
+
+rac_oz %>% 
+  plot_df(CA01, "Average number of jobs, age less than 29 (RAC)")
+
+rac_oz %>% 
+  plot_df(CE01, "Average number of jobs, less than $1250 a month (RAC)")
+
+rac_oz %>% 
+  plot_df(CE03, "Average number of jobs, greater than $3333 a month (RAC)")
+```
+```{r}
+# load residence area characteristics
+od_oz_14_r <- get_lodes_yr(states, 2014, oz, "od", "h_tract")
+od_oz_15_r <- get_lodes_yr(states, 2015, oz, "od", "h_tract")
+od_oz_16_r <- get_lodes_yr(states, 2016, oz, "od", "h_tract")
+od_oz_17_r <- get_lodes_yr(states, 2017, oz, "od", "h_tract")
+od_oz_18_r <- get_lodes_yr(states, 2018, oz, "od", "h_tract")
+od_oz_19_r <- get_lodes_yr(states, 2019, oz, "od", "h_tract")
+```
+
+
 
 
 
