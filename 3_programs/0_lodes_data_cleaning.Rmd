@@ -1,0 +1,115 @@
+---
+title: "Load OZs, Census Data, and LODES data"
+output: html_notebook
+author: Jennah Gosciak
+---
+
+```{r, setup}
+library(tidyverse)
+library(fs)
+library(tidycensus)
+library(lehdr)
+library(sf)
+library(assertr)
+# make sure to define/create this folder!
+data_dir <- "../0_data"
+```
+
+```{r}
+get_lodes_yr <- function(states, yr, oz, type, tract = NULL) {
+  df <- grab_lodes(state = states,
+                    year = yr, lodes_type = type,
+                    job_type = "JT00", segment = "S000", agg_geo = "tract")
+
+  if (type == "wac") {
+    tract <- "w_tract"
+  } else if (type == "rac") {
+    tract <- "h_tract"
+  }
+  
+  df_oz <- df %>% 
+    left_join(oz, ., by = c("GEOID" = tract)) %>% 
+    mutate(year = if_else(is.na(year), yr, as.double(year))) %>% 
+    verify(LIC == TRUE | CONTIGUOUS == TRUE | CROSS_STATE == TRUE) %>% 
+    mutate(designated_desc = if_else(DESIGNATED==TRUE, "Selected", "Eligible"))
+
+  # check uniqueness
+  stopifnot(length(unique(df_oz$GEOID)) == nrow(df_oz))
+  return(df_oz)
+}
+```
+
+```{r}
+# load oz data
+oz <- read_csv(path(data_dir, "Opportunity_Zone_Eligible_Census_Tracts.csv")) %>% 
+  filter(!is.na(DESIGNATED))
+oz
+```
+
+
+```{r}
+# load workplace characteristics
+states <- str_to_lower(state.abb)
+states <- states[!(states %in% c("ak", "ar", "ms"))]
+wac_oz_14 <- get_lodes_yr(states, 2014, oz, "wac")
+wac_oz_15 <- get_lodes_yr(states, 2015, oz, "wac")
+wac_oz_16 <- get_lodes_yr(states, 2016, oz, "wac")
+wac_oz_17 <- get_lodes_yr(states, 2017, oz, "wac")
+wac_oz_18 <- get_lodes_yr(states, 2018, oz, "wac")
+wac_oz_19 <- get_lodes_yr(states, 2019, oz, "wac")
+```
+
+
+```{r}
+wac_oz <- bind_rows(wac_oz_14, wac_oz_15, wac_oz_16, wac_oz_17, wac_oz_18, wac_oz_19)
+wac_oz %>% 
+  write_csv(path(data_dir, "wac_oz.csv"))
+```
+
+```{r}
+# plotting
+plot_df <- function(df, column, desc) {
+  column <- enquo(column)
+  
+  df_sum <- df %>% 
+    group_by(year, designated_desc) %>% 
+    summarize(y = mean(!!column, na.rm = TRUE)) 
+  
+  df_sum %>% 
+    print()
+  
+  df_sum %>% 
+    ggplot() +
+    geom_line(aes(x = year, y = y,
+                  color = designated_desc, group = designated_desc)) +
+    scale_y_continuous(limits = c(0, 4000)) +
+    labs(x = "Year", y = desc, color = "") +
+    theme_classic() 
+}
+
+wac_oz %>% 
+  plot_df(C000, "Average number of jobs")
+
+wac_oz %>% 
+  plot_df(CA01, "Average number of jobs, age less than 29")
+
+wac_oz %>% 
+  plot_df(CE01, "Average number of jobs, less than $1250 a month")
+
+wac_oz %>% 
+  plot_df(CE03, "Average number of jobs, greater than $3333 a month")
+```
+```{r}
+# load residence area characteristics
+rac_oz_14 <- get_lodes_yr(states, 2014, oz, "rac")
+rac_oz_15 <- get_lodes_yr(states, 2015, oz, "rac")
+rac_oz_16 <- get_lodes_yr(states, 2016, oz, "rac")
+rac_oz_17 <- get_lodes_yr(states, 2017, oz, "rac")
+rac_oz_18 <- get_lodes_yr(states, 2018, oz, "rac")
+rac_oz_19 <- get_lodes_yr(states, 2019, oz, "rac")
+```
+
+
+
+
+
