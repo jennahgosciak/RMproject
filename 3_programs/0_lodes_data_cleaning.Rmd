@@ -34,7 +34,9 @@ get_lodes_yr <- function(states, yr, oz, type, tract = NULL) {
     mutate(designated_desc = if_else(DESIGNATED==TRUE, "Selected", "Eligible"))
 
   # check uniqueness
-  stopifnot(length(unique(df_oz$GEOID)) == nrow(df_oz))
+  if (type == "wac" | type == "rac") {
+    stopifnot(length(unique(df_oz$GEOID)) == nrow(df_oz))
+  }
   return(df_oz)
 }
 ```
