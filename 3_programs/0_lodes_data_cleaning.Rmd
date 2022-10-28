@@ -1,5 +1,5 @@
 ---
-title: "Load OZs, Census Data, and LODES data"
+title: "Load OZs and LODES data"
 output: html_notebook
 author: Jennah Gosciak
 ---
@@ -11,6 +11,7 @@ library(tidycensus)
 library(lehdr)
 library(sf)
 library(assertr)
+
 # make sure to define/create this folder!
 data_dir <- "../0_data"
 ```
@@ -33,7 +34,6 @@ get_lodes_yr <- function(states, yr, oz, type, tract = NULL) {
     verify(LIC == TRUE | CONTIGUOUS == TRUE | CROSS_STATE == TRUE) %>% 
     mutate(designated_desc = if_else(DESIGNATED==TRUE, "Selected", "Eligible"))
   
-  print(df_oz)
   # check uniqueness
   if (type == "wac" | type == "rac") {
     stopifnot(length(unique(df_oz$GEOID)) == nrow(df_oz))
@@ -149,15 +149,16 @@ rac_oz %>%
 ```
 ```{r}
 # load residence area characteristics
-od_oz_14_r <- map_dfr(states, ~get_lodes_yr(., 2014, oz, "od", "h_tract"))
-od_oz_14_r
+od_oz_14_r <- map_dfr("ca", ~get_lodes_yr(., 2014, oz, "od", "h_tract"))
+od_oz_14_r %>% 
+      write_csv("od_oz_14_r.csv")
 ```
 ```{r}
 od_oz_15_r <- map_dfr(states, ~get_lodes_yr(., 2015, oz, "od", "h_tract"))
-od_oz_16_r <- get_lodes_yr(states, 2016, oz, "od", "h_tract")
-od_oz_17_r <- get_lodes_yr(states, 2017, oz, "od", "h_tract")
-od_oz_18_r <- get_lodes_yr(states, 2018, oz, "od", "h_tract")
-od_oz_19_r <- get_lodes_yr(states, 2019, oz, "od", "h_tract")
+od_oz_16_r <- map_dfr(states, ~get_lodes_yr(., 2016, oz, "od", "h_tract"))
+od_oz_17_r <- map_dfr(states, ~get_lodes_yr(., 2017, oz, "od", "h_tract"))
+od_oz_18_r <- map_dfr(states, ~get_lodes_yr(., 2018, oz, "od", "h_tract"))
+od_oz_19_r <- map_dfr(states, ~get_lodes_yr(., 2019, oz, "od", "h_tract"))
 ```
 
 
