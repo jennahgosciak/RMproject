@@ -32,10 +32,23 @@ get_lodes_yr <- function(states, yr, oz, type, tract = NULL) {
     mutate(year = if_else(is.na(year), yr, as.double(year))) %>% 
     verify(LIC == TRUE | CONTIGUOUS == TRUE | CROSS_STATE == TRUE) %>% 
     mutate(designated_desc = if_else(DESIGNATED==TRUE, "Selected", "Eligible"))
-
+  
+  print(df_oz)
   # check uniqueness
   if (type == "wac" | type == "rac") {
     stopifnot(length(unique(df_oz$GEOID)) == nrow(df_oz))
+  } else{
+    df_oz <- df_oz %>% 
+      left_join(oz %>% 
+                  select(GEOID, DESIGNATED) %>% 
+                  rename(h_desig = DESIGNATED),
+                by = c("w_tract" = "GEOID")) %>% 
+      mutate(same_tract = if_else(GEOID == w_tract & !is.na(w_tract), 1, 0)) %>% 
+      mutate(oz_desig_tract = if_else(h_desig %in% c(TRUE), 1, 0)) %>% 
+      mutate(oz_elig_tract = if_else(h_desig %in% c(FALSE), 1, 0)) %>% 
+      group_by(GEOID, LIC, CONTIGUOUS, CROSS_STATE, designated_desc,
+               year, same_tract, oz_desig_tract, oz_elig_tract) %>% 
+      summarize(across(S000:SI03, sum, na.rm = T))
   }
   return(df_oz)
 }
@@ -53,6 +66,8 @@ oz
 # load workplace characteristics
 states <- str_to_lower(state.abb)
 states <- states[!(states %in% c("ak", "ar", "ms"))]
+```
+```{r}
 wac_oz_14 <- get_lodes_yr(states, 2014, oz, "wac")
 wac_oz_15 <- get_lodes_yr(states, 2015, oz, "wac")
 wac_oz_16 <- get_lodes_yr(states, 2016, oz, "wac")
@@ -134,8 +149,11 @@ rac_oz %>%
 ```
 ```{r}
 # load residence area characteristics
-od_oz_14_r <- get_lodes_yr(states, 2014, oz, "od", "h_tract")
-od_oz_15_r <- get_lodes_yr(states, 2015, oz, "od", "h_tract")
+od_oz_14_r <- map_dfr(states, ~get_lodes_yr(., 2014, oz, "od", "h_tract"))
+od_oz_14_r
+```
+```{r}
+od_oz_15_r <- map_dfr(states, ~get_lodes_yr(., 2015, oz, "od", "h_tract"))
 od_oz_16_r <- get_lodes_yr(states, 2016, oz, "od", "h_tract")
 od_oz_17_r <- get_lodes_yr(states, 2017, oz, "od", "h_tract")
 od_oz_18_r <- get_lodes_yr(states, 2018, oz, "od", "h_tract")
