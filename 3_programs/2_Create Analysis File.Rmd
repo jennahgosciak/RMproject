@@ -1,0 +1,59 @@
+---
+title: "Merge files for analysis"
+author: "Adelaide Currin, Jennah Gosciak"
+date: "2022-11-05"
+output: html_document
+---
+
+```{r, setup}
+library(tidyverse)
+library(fs)
+library(tidycensus)
+library(lehdr)
+library(sf)
+library(readxl)
+data_dir <- "C:/Users/Jennah/Desktop/Code/RMproject"
+```
+
+```{r}
+# load acs
+acs_oz <- read_csv(str_glue("{data_dir}/2_output/acs_oz_data.csv")) %>% 
+  rename(acs_year = year)
+acs_oz
+```
+```{r}
+rac_oz <- read_csv(str_glue("{data_dir}/0_data/rac_oz.csv"))
+rac_oz
+
+wac_oz <- read_csv(str_glue("{data_dir}/0_data/wac_oz.csv"))
+wac_oz
+```
+```{r}
+rac_clean <- rac_oz %>% 
+  select(GEOID, year, C000:CS02) %>% 
+  mutate(GEOID = as.numeric(GEOID))  %>% 
+  rename_at(vars(C000:CS02), ~str_c(., "rac"))
+
+wac_clean <- wac_oz %>% 
+  select(GEOID, year, C000:CS02) %>% 
+  mutate(GEOID = as.numeric(GEOID)) %>% 
+  rename_at(vars(C000:CS02), ~str_c(., "wac"))
+
+merged_oz <- rac_clean %>% 
+  left_join(wac_clean, by = c("year", "GEOID")) %>% 
+  left_join(acs_oz, ., by = "GEOID") %>% 
+  mutate(treatment = as.numeric(DESIGNATED),
+         post = if_else(year %in% c(2018, 2019), 1, 0),
+         year_fact = factor(year, levels = c(2014:2019)),
+         post_treat = if_else(year %in% c(2018, 2019) & DESIGNATED == TRUE, 1, 0))
+
+merged_oz %>% 
+  group_by(year, post, post_treat, treatment) %>% 
+  summarize(n = n())
+
+merged_oz %>% 
+  saveRDS("../2_output/analysis_file.RDS")
+```
+
+
+

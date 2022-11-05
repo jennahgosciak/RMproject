@@ -69,6 +69,8 @@ oz
 states <- str_to_lower(state.abb)
 states <- states[!(states %in% c("ak", "ar", "ms"))]
 ```
+
+## Load WAC data
 ```{r}
 wac_oz_14 <- get_lodes_yr(states, 2014, oz, "wac")
 wac_oz_15 <- get_lodes_yr(states, 2015, oz, "wac")
@@ -78,12 +80,14 @@ wac_oz_18 <- get_lodes_yr(states, 2018, oz, "wac")
 wac_oz_19 <- get_lodes_yr(states, 2019, oz, "wac")
 ```
 
-
+## Write WAC data to csv
 ```{r}
 wac_oz <- bind_rows(wac_oz_14, wac_oz_15, wac_oz_16, wac_oz_17, wac_oz_18, wac_oz_19)
 wac_oz %>% 
   write_csv(path(data_dir, "wac_oz.csv"))
 ```
+
+## Plot WAC data over time
 
 ```{r}
 # plotting
@@ -121,6 +125,9 @@ wac_oz %>%
 wac_oz %>% 
   plot_df(CE03, "Average number of jobs, greater than $3333 a month (WAC)")
 ```
+
+## Load RAC data
+
 ```{r}
 # load residence area characteristics
 rac_oz_14 <- get_lodes_yr(states, 2014, oz, "rac")
@@ -130,12 +137,15 @@ rac_oz_17 <- get_lodes_yr(states, 2017, oz, "rac")
 rac_oz_18 <- get_lodes_yr(states, 2018, oz, "rac")
 rac_oz_19 <- get_lodes_yr(states, 2019, oz, "rac")
 ```
+
+## Write RAC data to csv
 ```{r}
 rac_oz <- bind_rows(rac_oz_14, rac_oz_15, rac_oz_16, rac_oz_17, rac_oz_18, rac_oz_19)
 rac_oz %>% 
   write_csv(path(data_dir, "rac_oz.csv"))
 ```
 
+## Plot RAC data over time
 ```{r}
 rac_oz %>% 
   plot_df(C000, "Average number of jobs (RAC)")
@@ -149,6 +159,8 @@ rac_oz %>%
 rac_oz %>% 
   plot_df(CE03, "Average number of jobs, greater than $3333 a month (RAC)")
 ```
+
+## Load OD data
 ```{r}
 # load residence area characteristics
 od_oz_14_r <- map_dfr(states, ~get_lodes_yr(., 2014, oz, "od", "h_tract"))
@@ -175,6 +187,12 @@ od_oz_19_r <- get_lodes_yr(states, 2019, oz, "od", "h_tract")
 od_oz_19_r %>% 
   write_csv("../2_output/od_oz_19_r.csv")
 ```
+
+```{r}
+od_oz_14_r <- read_csv("../2_output/od_oz_14_r.csv")
+od_oz_15_r <- read_csv("../2_output/od_oz_15_r.csv")
+```
+
 
 
 

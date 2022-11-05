@@ -1,0 +1,30 @@
+---
+title: "Run analysis"
+author: "Adelaide Currin, Jennah Gosciak"
+date: "2022-11-05"
+output: html_document
+---
+
+```{r, setup}
+library(tidyverse)
+library(fs)
+library(tidycensus)
+library(lehdr)
+library(sf)
+library(readxl)
+data_dir <- "C:/Users/Jennah/Desktop/Code/RMproject"
+```
+
+```{r}
+merged_oz <- readRDS("../2_output/analysis_file.RDS") %>% 
+  mutate(across(C000rac:CS02wac, ~if_else(is.na(.), 0, .)))
+```
+
+
+```{r}
+mod1 <- lm(C000rac ~ year_fact + post_treat + treatment, data = merged_oz)
+summary(mod1)
+
+mod2 <- lm(C000wac ~ treatment*post + year_fact, data = merged_oz)
+summary(mod2)
+```
