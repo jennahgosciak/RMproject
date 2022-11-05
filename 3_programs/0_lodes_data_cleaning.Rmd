@@ -28,12 +28,12 @@ get_lodes_yr <- function(states, yr, oz, type, tract = NULL) {
   }
   
   df_oz <- df %>% 
-    left_join(oz, ., by = c("GEOID" = tract)) %>% 
+    inner_join(oz, ., by = c("GEOID" = tract)) %>% 
     mutate(year = if_else(is.na(year), yr, as.double(year))) %>% 
     verify(LIC == TRUE | CONTIGUOUS == TRUE | CROSS_STATE == TRUE) %>% 
+    verify(DESIGNATED %in% c(TRUE, FALSE)) %>% 
     mutate(designated_desc = if_else(DESIGNATED==TRUE, "Selected", "Eligible"))
   
-  print(df_oz)
   # check uniqueness
   if (type == "wac" | type == "rac") {
     stopifnot(length(unique(df_oz$GEOID)) == nrow(df_oz))
@@ -41,14 +41,16 @@ get_lodes_yr <- function(states, yr, oz, type, tract = NULL) {
     df_oz <- df_oz %>% 
       left_join(oz %>% 
                   select(GEOID, DESIGNATED) %>% 
-                  rename(h_desig = DESIGNATED),
+                  rename(w_desig = DESIGNATED),
                 by = c("w_tract" = "GEOID")) %>% 
       mutate(same_tract = if_else(GEOID == w_tract & !is.na(w_tract), 1, 0)) %>% 
-      mutate(oz_desig_tract = if_else(h_desig %in% c(TRUE), 1, 0)) %>% 
-      mutate(oz_elig_tract = if_else(h_desig %in% c(FALSE), 1, 0)) %>% 
-      group_by(GEOID, LIC, CONTIGUOUS, CROSS_STATE, designated_desc,
-               year, same_tract, oz_desig_tract, oz_elig_tract) %>% 
-      summarize(across(S000:SI03, sum, na.rm = T))
+      mutate(cat = case_when(same_tract == 1 ~ "same_tract",
+                             w_desig == TRUE ~ "desig",
+                             w_desig == FALSE ~ "elig",
+                             is.na(w_desig) ~ "oth")) %>% 
+      group_by(GEOID, year, cat, LIC, CONTIGUOUS, CROSS_STATE) %>% 
+      summarize(across(S000:SI03, sum, na.rm = T)) %>% 
+      pivot_wider(id_cols = c("GEOID", "year", "LIC", "CONTIGUOUS"), names_from = "cat", values_from = c(S000:SI03))
   }
   return(df_oz)
 }
@@ -150,14 +152,29 @@ rac_oz %>%
 ```{r}
 # load residence area characteristics
 od_oz_14_r <- map_dfr(states, ~get_lodes_yr(., 2014, oz, "od", "h_tract"))
-od_oz_14_r
+od_oz_14_r %>% 
+  write_csv("../3_output/0d_oz_14_r.csv")
+
+od_oz_15_r <- map_dfr(states[1], ~get_lodes_yr(., 2015, oz, "od", "h_tract"))
+od_oz_15_r %>% 
+  write_csv("../3_output/0d_oz_15_r.csv")
+
+od_oz_16_r <- get_lodes_yr(states, 2016, oz, "od", "h_tract")
+od_oz_16_r %>% 
+  write_csv("../3_output/0d_oz_16_r.csv")
+
+od_oz_17_r <- get_lodes_yr(states, 2017, oz, "od", "h_tract")
+od_oz_17_r %>% 
+  write_csv("../3_output/0d_oz_17_r.csv")
+
+od_oz_18_r <- get_lodes_yr(states, 2018, oz, "od", "h_tract")
+od_oz_18_r  %>% 
+  write_csv("../3_output/0d_oz_18_r.csv")
 ```
 ```{r}
-od_oz_15_r <- map_dfr(states, ~get_lodes_yr(., 2015, oz, "od", "h_tract"))
-od_oz_16_r <- get_lodes_yr(states, 2016, oz, "od", "h_tract")
-od_oz_17_r <- get_lodes_yr(states, 2017, oz, "od", "h_tract")
-od_oz_18_r <- get_lodes_yr(states, 2018, oz, "od", "h_tract")
 od_oz_19_r <- get_lodes_yr(states, 2019, oz, "od", "h_tract")
+od_oz_19_r %>% 
+  write_csv("../3_output/0d_oz_19_r.csv")
 ```
 
 
