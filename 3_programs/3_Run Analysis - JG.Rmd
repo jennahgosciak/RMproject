@@ -22,9 +22,12 @@ merged_oz <- readRDS("../2_output/analysis_file.RDS") %>%
 
 
 ```{r}
-mod1 <- lm(C000rac ~ year_fact + post_treat + treatment, data = merged_oz)
+mod1 <- lm(C000rac ~ year_fact + year_fact:treatment + treatment, data = merged_oz)
 summary(mod1)
 
-mod2 <- lm(C000wac ~ treatment*post + year_fact, data = merged_oz)
+mod2 <- lm(C000wac ~ year_fact + year_fact:treatment + treatment, data = merged_oz)
 summary(mod2)
+
+lm(C000wac ~ treatment*post + treatment + post, data = merged_oz %>% 
+             filter(year %in% c(2017, 2019)))
 ```

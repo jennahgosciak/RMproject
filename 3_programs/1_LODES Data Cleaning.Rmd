@@ -11,9 +11,12 @@ library(tidycensus)
 library(lehdr)
 library(sf)
 library(assertr)
+
 # make sure to define/create this folder!
 data_dir <- "../0_data"
 ```
+
+* Function to get lodes data for a particular year and set of states *
 
 ```{r}
 get_lodes_yr <- function(states, yr, oz, type, tract = NULL) {
@@ -167,7 +170,7 @@ od_oz_14_r <- map_dfr(states, ~get_lodes_yr(., 2014, oz, "od", "h_tract"))
 od_oz_14_r %>% 
   write_csv("../2_output/od_oz_14_r.csv")
 
-od_oz_15_r <- map_dfr(states[1], ~get_lodes_yr(., 2015, oz, "od", "h_tract"))
+od_oz_15_r <- map_dfr(states, ~get_lodes_yr(., 2015, oz, "od", "h_tract"))
 od_oz_15_r %>% 
   write_csv("../2_output/od_oz_15_r.csv")
 
@@ -188,9 +191,23 @@ od_oz_19_r %>%
   write_csv("../2_output/od_oz_19_r.csv")
 ```
 
+## Combine od files into one
+
 ```{r}
 od_oz_14_r <- read_csv("../2_output/od_oz_14_r.csv")
 od_oz_15_r <- read_csv("../2_output/od_oz_15_r.csv")
+od_oz_16_r <- read_csv("../2_output/od_oz_16_r.csv")
+od_oz_17_r <- read_csv("../2_output/od_oz_17_r.csv")
+od_oz_18_r <- read_csv("../2_output/od_oz_18_r.csv")
+od_oz_19_r <- read_csv("../2_output/od_oz_19_r.csv")
+
+od_full <- bind_rows(od_oz_14_r, od_oz_15_r,
+                     od_oz_16_r, od_oz_17_r,
+                     od_oz_18_r, od_oz_19_r)
+
+od_full %>% 
+  group_by(year) %>% 
+  summarize(n = n())
 ```
 
 
