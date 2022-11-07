@@ -208,6 +208,11 @@ od_full <- bind_rows(od_oz_14_r, od_oz_15_r,
 od_full %>% 
   group_by(year) %>% 
   summarize(n = n())
+
+od_full
+
+od_full %>% 
+  write_csv("../2_output/od_data.csv", na="")
 ```
 
 
