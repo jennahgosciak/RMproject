@@ -212,7 +212,7 @@ od_full %>%
 od_full
 
 od_full %>% 
-  write_csv("../2_output/od_data.csv", na="")
+  write_csv("../0_data/od_data.csv", na="")
 ```
 
 

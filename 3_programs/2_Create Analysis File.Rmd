@@ -27,6 +27,9 @@ rac_oz
 
 wac_oz <- read_csv(str_glue("{data_dir}/0_data/wac_oz.csv"))
 wac_oz
+
+od_oz <-read_csv(str_glue("{data_dir}/0_data/od_data.csv"))
+od_oz
 ```
 ```{r}
 rac_clean <- rac_oz %>% 
@@ -39,8 +42,13 @@ wac_clean <- wac_oz %>%
   mutate(GEOID = as.numeric(GEOID)) %>% 
   rename_at(vars(C000:CS02), ~str_c(., "wac"))
 
+od_clean <- od_oz %>% 
+  select(GEOID, year, S000_desig:SI03_same_tract) %>% 
+  mutate(GEOID = as.numeric(GEOID))
+
 merged_oz <- rac_clean %>% 
   left_join(wac_clean, by = c("year", "GEOID")) %>% 
+    left_join(od_clean, by = c("year", "GEOID")) %>% 
   left_join(acs_oz, ., by = "GEOID") %>% 
   mutate(treatment = as.numeric(DESIGNATED),
          post = if_else(year %in% c(2018, 2019), 1, 0),

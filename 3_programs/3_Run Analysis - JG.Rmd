@@ -28,6 +28,12 @@ summary(mod1)
 mod2 <- lm(C000wac ~ year_fact + year_fact:treatment + treatment, data = merged_oz)
 summary(mod2)
 
-lm(C000wac ~ treatment*post + treatment + post, data = merged_oz %>% 
-             filter(year %in% c(2017, 2019)))
+mod3 <- lm(S000_same_tract ~ year_fact + post:treatment + treatment, data = merged_oz %>% 
+             filter(year %in% c(2016, 2019) & LIC == TRUE))
+summary(mod3)
+
+merged_oz %>% 
+  filter(LIC == TRUE) %>% 
+  group_by(DESIGNATED) %>% 
+  summarize(n = n())
 ```
