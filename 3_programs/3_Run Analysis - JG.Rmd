@@ -7,6 +7,7 @@ output: html_document
 
 ```{r, setup}
 library(tidyverse)
+library(rlang)
 library(fs)
 library(tidycensus)
 library(lehdr)
@@ -17,23 +18,25 @@ data_dir <- "C:/Users/Jennah/Desktop/Code/RMproject"
 
 ```{r}
 merged_oz <- readRDS("../2_output/analysis_file.RDS") %>% 
-  mutate(across(C000rac:CS02wac, ~if_else(is.na(.), 0, .)))
+  mutate(across(C000rac:CS02wac, ~if_else(is.na(.), 0, .))) %>% 
+  mutate(poverty_rate = povertystatus / povertystatus_denom)
+
+cov <- c("medfamincome", "poverty_rate")
 ```
 
-
 ```{r}
-mod1 <- lm(C000rac ~ year_fact + year_fact:treatment + treatment, data = merged_oz)
-summary(mod1)
+run_model_outcome <- function(outcome, data=merged_oz, covariates=cov) {
+  covariates <- str_c(covariates, collapse = " + ")
+  print(str_c("Running model for ", outcome))
+  mod <- lm(str_c(outcome, "~ year + year:treatment:post + post:treatment + post + treatment + ", covariates), data = data)
+  summary(mod) %>% 
+    print()
+  
+  return(mod)
+}
 
-mod2 <- lm(C000wac ~ year_fact + year_fact:treatment + treatment, data = merged_oz)
-summary(mod2)
-
-mod3 <- lm(S000_same_tract ~ year_fact + post:treatment + treatment, data = merged_oz %>% 
-             filter(year %in% c(2016, 2019) & LIC == TRUE))
-summary(mod3)
-
-merged_oz %>% 
-  filter(LIC == TRUE) %>% 
-  group_by(DESIGNATED) %>% 
-  summarize(n = n())
+walk(c("C000rac", "C000wac",
+       "CA01rac","CA01wac",
+       "CE01rac", "CE01wac",
+       "S000_same_tract", "S000_desig", "S000_elig"), ~run_model_outcome(.))
 ```
