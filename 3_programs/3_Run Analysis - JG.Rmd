@@ -13,29 +13,60 @@ library(tidycensus)
 library(lehdr)
 library(sf)
 library(readxl)
+library(plm)
+library(lmtest)
+library(wfe)
 data_dir <- "C:/Users/Jennah/Desktop/Code/RMproject"
 ```
 
 ```{r}
 merged_oz <- readRDS("../2_output/analysis_file.RDS") %>% 
-  mutate(across(C000rac:CS02wac, ~if_else(is.na(.), 0, .))) %>% 
-  mutate(poverty_rate = povertystatus / povertystatus_denom)
+  mutate(across(C000rac:SI03_same_tract, ~if_else(is.na(.), 0, .))) %>% 
+  mutate(poverty_rate = povertystatus / povertystatus_denom) %>% 
+  filter(!is.na(GEOID) & !is.na(year))
 
+mgd_oz_plm <- pdata.frame(merged_oz, index = c("GEOID", "year"))
 cov <- c("medfamincome", "poverty_rate")
 ```
 
 ```{r}
-run_model_outcome <- function(outcome, data=merged_oz, covariates=cov) {
+run_model_outcome <- function(outcome, data=merged_oz, covariates=cov, print=TRUE) {
   covariates <- str_c(covariates, collapse = " + ")
   print(str_c("Running model for ", outcome))
-  mod <- lm(str_c(outcome, "~ year + year:treatment:post + post:treatment + post + treatment + ", covariates), data = data)
-  summary(mod) %>% 
-    print()
   
-  return(mod)
+  fit_plm <- plm(paste0(outcome, " ~ post:treatment +", covariates), 
+               data = data, 
+               index = c("GEOID", "year"), 
+               model = "within", 
+               effect = "twoways")
+  sum_fit_plm <- summary(fit_plm)
+  if (print == TRUE) {
+      sum_fit_plm %>% 
+      print() 
+  }
+  
+  coef <- sum_fit_plm$coefficients
+  pval <- sum_fit_plm$coefficients[, 3]
+  coef_ast <- case_when(pval < 0.01 ~ paste0(coef, "***"),
+                        pval < 0.05 ~ paste0(coef, "**"),
+                        pval < 0.1 ~ paste0(coef, "*"))
+
+  coeftest(fit_plm, vcov = vcovHC, type = "HC1")
+  results <- data.frame("outcome" = outcome,
+               "treatment:post" = sum_fit_plm$coefficients[, 1],
+               "coef_asterisk" = coef_ast,
+               "se" = sum_fit_plm$coefficients[, 2],
+               "pval" = sum_fit_plm$coefficients[, 3],
+               "rsq" = sum_fit_plm$r.squared[[1]],
+               "formula" = as.character(sum_fit_plm$call[2]))
+  
+  return(results)
 }
 
-walk(c("C000rac", "C000wac",
+run_model_outcome("S000_same_tract")
+```
+```{r}
+results <- map_dfr(c("C000rac", "C000wac",
        "CA01rac","CA01wac",
        "CE01rac", "CE01wac",
        "S000_same_tract", "S000_desig", "S000_elig"), ~run_model_outcome(.))

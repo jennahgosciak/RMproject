@@ -45,7 +45,9 @@ wac_clean <- wac_oz %>%
 od_clean <- od_oz %>% 
   select(GEOID, year, S000_desig:SI03_same_tract) %>% 
   mutate(GEOID = as.numeric(GEOID))
+```
 
+```{r}
 merged_oz <- rac_clean %>% 
   left_join(wac_clean, by = c("year", "GEOID")) %>% 
     left_join(od_clean, by = c("year", "GEOID")) %>% 
@@ -53,6 +55,7 @@ merged_oz <- rac_clean %>%
   mutate(treatment = as.numeric(DESIGNATED),
          post = if_else(year %in% c(2018, 2019), 1, 0),
          year_fact = factor(year, levels = c(2014:2019)),
+         geoid_fact = factor(GEOID),
          post_treat = if_else(year %in% c(2018, 2019) & DESIGNATED == TRUE, 1, 0))
 
 merged_oz %>% 
@@ -61,6 +64,8 @@ merged_oz %>%
 
 merged_oz %>% 
   saveRDS("../2_output/analysis_file.RDS")
+
+merged_oz
 ```
 
 
