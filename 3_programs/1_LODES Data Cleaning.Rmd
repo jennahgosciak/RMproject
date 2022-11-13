@@ -88,6 +88,8 @@ wac_oz_19 <- get_lodes_yr(states, 2019, oz, "wac")
 wac_oz <- bind_rows(wac_oz_14, wac_oz_15, wac_oz_16, wac_oz_17, wac_oz_18, wac_oz_19)
 wac_oz %>% 
   write_csv(path(data_dir, "wac_oz.csv"))
+
+wac_oz
 ```
 
 ## Plot WAC data over time
@@ -99,7 +101,7 @@ plot_df <- function(df, column, desc) {
   
   df_sum <- df %>% 
     group_by(year, designated_desc) %>% 
-    summarize(y = mean(!!column, na.rm = TRUE)) 
+    summarize(y = sum(!!column, na.rm = TRUE)) 
   
   df_sum %>% 
     print()
@@ -108,7 +110,6 @@ plot_df <- function(df, column, desc) {
     ggplot() +
     geom_line(aes(x = year, y = y,
                   color = designated_desc, group = designated_desc)) +
-    scale_y_continuous(limits = c(0, 4000)) +
     labs(x = "Year", y = desc, color = "") +
     theme_classic() 
   

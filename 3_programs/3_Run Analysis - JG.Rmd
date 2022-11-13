@@ -15,8 +15,12 @@ library(sf)
 library(readxl)
 library(plm)
 library(lmtest)
+library(sandwich)
 library(wfe)
 data_dir <- "C:/Users/Jennah/Desktop/Code/RMproject"
+
+date <- Sys.Date() %>% 
+  str_replace_all("-", "_")
 ```
 
 ```{r}
@@ -24,7 +28,8 @@ data_dir <- "C:/Users/Jennah/Desktop/Code/RMproject"
 outcomes <- c("C000rac", "C000wac",
        "CA01rac","CA01wac",
        "CE01rac", "CE01wac",
-       "S000_same_tract", "S000_desig", "S000_elig")
+       "S000_same_tract", "S000_desig",
+       "S000_elig")
 
 log_outcomes <- str_c(outcomes, "_log")
 cov <- c("medfamincome", "poverty_rate")
@@ -36,16 +41,31 @@ merged_oz <- readRDS("../2_output/analysis_file.RDS") %>%
   mutate(across(C000rac:SI03_same_tract, .fns = list(log = ~log(if_else(. == 0, 1, .))), .names = "{.col}_{.fn}")) %>% 
   mutate(post_treatment = post*treatment) %>% 
   mutate(poverty_rate = povertystatus / povertystatus_denom) %>% 
-  filter(!is.na(GEOID) & !is.na(year))
+  filter(!is.na(GEOID) & !is.na(year)) %>% 
+  filter((CONTIGUOUS == FALSE & DESIGNATED == FALSE) | DESIGNATED == TRUE)
 
-mgd_oz_plm <- pdata.frame(merged_oz, index = c("GEOID", "year"))
+merged_oz
 
-merged_oz 
 ```
 
 ```{r}
-twfe_model <- function(outcome, data) {
-  return(plm(paste0(outcome, " ~ post_treatment +", covariates), 
+# functions for each model
+pooled_ols <- function(outcome, data, covariates) {
+  return(lm(paste0(outcome, " ~ treatment:post + ",
+  "treatment + year_fact + post +", covariates),
+               data = data))
+}
+
+trend_model <- function(outcome, data, covariates) {
+  return(lm(paste0(outcome, " ~ treatment:year:post + treatment:post + treatment:year +",
+  "treatment + year + post +", covariates),
+               data = data))
+  
+}
+
+
+twfe_model <- function(outcome, data, covariates) {
+  return(plm(paste0(outcome, " ~ post_treatment + treatment"), 
                data = data, 
                index = c("GEOID", "year"), 
                model = "within", 
@@ -53,34 +73,53 @@ twfe_model <- function(outcome, data) {
   
 }
 
-trend_model <- function(outcome, data) {
-  return(plm(paste0(outcome, " ~ post_treatment + treatment + post + year + ", covariates), 
+
+trend_model_fe <- function(outcome, data, covariates) {
+  return(plm(paste0(outcome, " ~ post_treatment + treatment + post + year"), 
                data = data, 
                index = c("GEOID"), 
                model = "within", 
                effect = "individual"))
   
 }
+```
 
-generate_model_output <- function(fit_plm, outcome, model_type, print) {
-  sum_fit_plm <- summary(fit_plm)
+```{r}
+generate_model_output <- function(fit_model, outcome, treat_var, model_type, data, print) {
+  sum_fit_plm <- summary(fit_model)
+
+  if (model_type %in% c("twfe", "time_trend_fe")) {
+    coef_names <- sum_fit_plm$coefficients %>% 
+          row.names()
+    
+    coef_vals <- coeftest(fit_model,
+                        vcovHC(fit_model, type = 'HC3', cluster = 'group'))
+  } else {
+    coef_names <- sum_fit_plm$coefficients[, 1] %>% 
+      names()
+    coef_vals <- coeftest(fit_model, vcov = vcovCL,
+                                    type = "HC1",
+                                    cluster = data$GEOID)
+  }
   if (print == TRUE) {
       sum_fit_plm %>% 
       print() 
+    
+    coef_vals %>% 
+      print()
   }
-
-  coef_vals <- coeftest(fit_plm,
-                        vcovHC(fit_plm, type = 'HC3', cluster = 'group'))
   
-  coef <- round(sum_fit_plm$coefficients[1, 1], 3)
-  se <- round(coef_vals[1, 2], 3)
-  pval <- round(coef_vals[1, 4], 4)
+  coef_pos <- which(treat_var == coef_names)
+  
+  coef <- round(sum_fit_plm$coefficients[coef_pos, 1], 3)
+  se <- round(coef_vals[coef_pos, 2], 3)
+  pval <- round(coef_vals[coef_pos, 4], 4)
   coef_ast <- case_when(pval < 0.01 ~ paste0(coef, "***"),
                         pval < 0.05 ~ paste0(coef, "**"),
                         pval < 0.1 ~ paste0(coef, "*"))
   
   return(data.frame("outcome" = outcome,
-               "treatment_post" = sum_fit_plm$coefficients[1, 1],
+               "treatment_post" = sum_fit_plm$coefficients[coef_pos, 1],
                "coef_asterisk" = coef_ast,
                "se" = se,
                "pval" = pval,
@@ -88,21 +127,42 @@ generate_model_output <- function(fit_plm, outcome, model_type, print) {
                "model_type" = model_type))
 }
 
-run_model_outcome <- function(outcome, data=merged_oz, covariates=cov, print=TRUE) {
+run_model_outcome <- function(outcome, models, data=merged_oz, covariates=cov, print=TRUE) {
   covariates <- str_c(covariates, collapse = " + ")
   print(str_c("Running model for ", outcome))
-  
-  fit_plm <- twfe_model(outcome, data)
-  results <- generate_model_output(fit_plm, outcome, "twfe", print=print)
-  
-  fit_plm_trend <- trend_model(outcome, data)
-  results <- bind_rows(results, generate_model_output(fit_plm_trend, outcome, "time_trend", print=print))
+  results <- data.frame()
+  if ("twfe" %in% models) {
+    fit_plm <- twfe_model(outcome, data, covariates)
+    results <- bind_rows(results, generate_model_output(fit_plm, outcome,
+                                                        "post_treatment", "twfe", data, print=print)) 
+  }
+  if ("time_trend_fe" %in% models) {
+    fit_plm_trend <- trend_model_fe(outcome, data, covariates)
+    results <- bind_rows(results, generate_model_output(fit_plm_trend, outcome,
+                                                        "post_treatment", "time_trend_fe", data, print=print)) 
+  }
+  if ("did" %in% models) {
+    fit_did <- pooled_ols(outcome, data, covariates)
+    results <- bind_rows(results, generate_model_output(fit_did, outcome,
+                                                        "treatment:post", "did", data, print=print)) 
+  }
+  if ("time_trend" %in% models) {
+    fit_trend_lm <- trend_model(outcome, data, covariates)
+    results <- bind_rows(results, generate_model_output(fit_trend_lm, outcome,
+                                                        "treatment:year:post", "time_trend", data, print=print)) 
+  }
   return(results)
 }
 
-run_model_outcome("S000_same_tract", print=TRUE)
+models <- c("twfe", "time_trend_fe", "did", "time_trend")
+run_model_outcome("S000_same_tract", models,  print=T)
 ```
 ```{r}
-results <- map_dfr(c(outcomes, log_outcomes), ~run_model_outcome(., print=FALSE))
+results <- map_dfr(c(outcomes, log_outcomes), ~run_model_outcome(.,
+                                                                 models=models, print=FALSE))
 results
+
+# save to output
+results %>% 
+  write_csv(str_glue("../2_output/results_{date}.csv"), na="")
 ```
