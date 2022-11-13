@@ -27,8 +27,11 @@ download.file(shell_2017, str_glue("{shelldir}/{shellname}"))
 ```
 ```{r}
 #Load
-shell_acs_2017 <- read_xlsx(path(data_dir, "acs_5_2017.xlsx"))
-shell_acs_2017
+codebook <- read_xlsx(path(data_dir, "codebook.xlsx"))
+codebook
+
+ourcovariates <- codebook$Variable[which(codebook$Include==1)]
+ourcovariates
 ```
 
 ```{r}
