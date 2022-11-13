@@ -99,7 +99,7 @@ generate_model_output <- function(fit_model, outcome, treat_var, model_type, dat
       names()
     coef_vals <- coeftest(fit_model, vcov = vcovCL,
                                     type = "HC1",
-                                    cluster = data$GEOID)
+                                    cluster = data$)
   }
   if (print == TRUE) {
       sum_fit_plm %>% 
