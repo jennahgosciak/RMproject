@@ -44,7 +44,9 @@ merged_oz <- readRDS("../2_output/analysis_file.RDS") %>%
   filter(!is.na(GEOID) & !is.na(year)) %>% 
   filter((CONTIGUOUS == FALSE & DESIGNATED == FALSE) | DESIGNATED == TRUE)
 
-merged_oz
+merged_oz %>% 
+  group_by(year, DESIGNATED) %>% 
+  summarize(n = n())
 
 ```
 

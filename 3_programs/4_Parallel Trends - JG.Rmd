@@ -1,0 +1,95 @@
+---
+title: "Run analysis"
+author: "Adelaide Currin, Jennah Gosciak"
+date: "2022-11-05"
+output: html_document
+---
+
+```{r, setup}
+library(tidyverse)
+library(rlang)
+library(fs)
+library(tidycensus)
+library(lehdr)
+library(sf)
+library(readxl)
+library(plm)
+library(lmtest)
+library(sandwich)
+library(wfe)
+data_dir <- "C:/Users/Jennah/Desktop/Code/RMproject"
+
+date <- Sys.Date() %>% 
+  str_replace_all("-", "_")
+```
+
+```{r}
+# define outcomes and covariates
+outcomes <- c("C000rac", "C000wac",
+       "CA01rac","CA01wac",
+       "CE01rac", "CE01wac",
+       "S000_same_tract", "S000_desig",
+       "S000_elig")
+
+log_outcomes <- str_c(outcomes, "_log")
+cov <- c("medfamincome", "poverty_rate")
+```
+
+```{r}
+merged_oz <- readRDS("../2_output/analysis_file.RDS") %>% 
+  mutate(across(C000rac:SI03_same_tract, ~if_else(is.na(.), 0, .))) %>% 
+  mutate(across(C000rac:SI03_same_tract, .fns = list(log = ~log(if_else(. == 0, 1, .))), .names = "{.col}_{.fn}")) %>% 
+  mutate(post_treatment = post*treatment) %>% 
+  mutate(poverty_rate = povertystatus / povertystatus_denom) %>% 
+  filter(!is.na(GEOID) & !is.na(year)) %>% 
+  filter((CONTIGUOUS == FALSE & DESIGNATED == FALSE) | DESIGNATED == TRUE) %>%
+  mutate(C000rac_rate = if_else(totalpop > 0, C000rac / totalpop, 0))
+
+merged_oz %>% 
+  group_by(year, DESIGNATED) %>% 
+  summarize(n = n())
+```
+```{r}
+merged_oz %>% 
+  group_by(year, treatment) %>% 
+  summarize(C000rac_avg = mean(C000rac_rate, na.rm = T)) %>% 
+  ggplot(aes(x = year, y = C000rac_avg)) +
+  geom_line(aes(color=if_else(treatment == 1, "Selected", "Eligible"))) +
+  theme_classic() +
+  labs(color = "Designation") +
+  scale_y_continuous(limits = c(0.35, 0.45))
+
+
+merged_oz %>% 
+  filter(C000rac > 1000) %>% 
+  group_by(year, treatment) %>% 
+  summarize(C000rac_avg = mean(C000rac_log, na.rm = T)) %>% 
+  ggplot(aes(x = year, y = C000rac_avg)) +
+  geom_line(aes(color=if_else(treatment == 1, "Selected", "Eligible"))) +
+  theme_classic() +
+  labs(color = "Designation")
+
+merged_oz %>% 
+  filter(C000wac > 1000) %>% 
+  group_by(year, treatment) %>% 
+  summarize(C000wac_avg = mean(C000wac_log, na.rm = T)) %>% 
+  ggplot(aes(x = year, y = C000wac_avg)) +
+  geom_line(aes(color=if_else(treatment == 1, "Selected", "Eligible"))) +
+  theme_classic() +
+  labs(color = "Designation")
+
+merged_oz %>% 
+  filter(C000rac > 1000) %>% 
+  arrange(GEOID, year) %>% 
+  group_by(GEOID) %>% 
+  arrange(year, .by_group = TRUE) %>% 
+  mutate(C000rac_pct_change = ((C000rac/dplyr::lag(C000rac) - 1) * 100)) %>% 
+  group_by(treatment, year) %>% 
+  summarize(C000rac_avg = mean(C000rac_pct_change, na.rm = T)) %>% 
+  ggplot(aes(x = year, y = C000rac_avg)) +
+  geom_line(aes(color=if_else(treatment == 1, "Selected", "Eligible"))) +
+  theme_classic() +
+  labs(color = "Designation")
+```
+
+
