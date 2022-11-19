@@ -39,7 +39,9 @@ cov <- c("medfamincome", "poverty_rate")
 merged_oz <- readRDS("../2_output/analysis_file.RDS") %>% 
   mutate(across(C000rac:SI03_same_tract, ~if_else(is.na(.), 0, .))) %>% 
   mutate(across(C000rac:SI03_same_tract, .fns = list(log = ~log(if_else(. == 0, 1, .))), .names = "{.col}_{.fn}")) %>% 
-  mutate(post_treatment = post*treatment) %>% 
+  mutate(treatment2 = if_else(year >= 2015, 1, 0)) %>% 
+  mutate(post_treatment = post*treatment,
+         post_treatment2 = post*treatment2) %>% 
   mutate(poverty_rate = povertystatus / povertystatus_denom) %>% 
   filter(!is.na(GEOID) & !is.na(year)) %>% 
   filter((CONTIGUOUS == FALSE & DESIGNATED == FALSE) | DESIGNATED == TRUE) %>%
@@ -59,7 +61,7 @@ merged_oz %>%
   ggplot(aes(x = year, y = C000rac_avg)) +
   geom_line(aes(color=if_else(treatment == 1, "Selected", "Eligible"))) +
   theme_classic() +
-  labs(color = "Designation") +
+  labs(color = "Designation", title = "Average jobs (RAC) per capita") +
   scale_y_continuous(limits = c(0.35, 0.45))
 
 
@@ -140,7 +142,7 @@ merged_oz %>%
 ```{r}
 # functions for each model
 pooled_ols <- function(outcome, data, covariates) {
-  return(lm(paste0(outcome, " ~ treatment:year + year + treatment + totalpop + poverty_rate + medfamincome"),
+  return(lm(paste0(outcome, " ~ treatment:year + year + treatment +  totalpop + poverty_rate + medfamincome"),
                data = data))
 }
 ```
@@ -189,7 +191,7 @@ run_model_outcome <- function(outcome, models, data, covariates=cov, print=TRUE)
   if ("did" %in% models) {
     fit_did <- pooled_ols(outcome, data, covariates)
     results <- bind_rows(results, generate_model_output(fit_did, outcome,
-                                                        "treatment:year", "did", data, print=print)) 
+                                                        "treatment", "did", data, print=print)) 
   }
  
   return(results)
@@ -203,9 +205,34 @@ run_model_outcome("S000_same_tract", models, data = merged_oz %>%
 ```{r}
 results <- map_dfr(c(outcomes, log_outcomes), ~run_model_outcome(., models=models, 
                                                                  data = merged_oz %>% 
-                                                                   filter(post == 0), print=FALSE))
+                                                                   filter(post == 0), print=T))
 results
 ```
+
+```{r}
+ols_balance <- function(outcome, data) {
+  return(lm(paste0(outcome, " ~ treatment"),
+               data = data))
+}
+
+run_balance_tests <- function(outcome, data, print=TRUE) {
+  print(str_c("Running model for ", outcome))
+  results <- data.frame()
+  
+  if ("did" %in% models) {
+    fit_did <- ols_balance(outcome, data)
+    results <- bind_rows(results, generate_model_output(fit_did, outcome,
+                                                        "treatment", "did", data, print=print)) 
+  }
+ 
+  return(results)
+}
+
+# balance test
+balance_tests <- map_dfr(c("poverty_rate", "medfamincome"), ~run_balance_tests(., merged_oz %>% 
+                                                                                 filter(year == 2017)))
+```
+
 
 
 

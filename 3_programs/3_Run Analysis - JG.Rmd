@@ -54,7 +54,7 @@ merged_oz %>%
 # functions for each model
 pooled_ols <- function(outcome, data, covariates) {
   return(lm(paste0(outcome, " ~ treatment:post + ",
-  "treatment + year_fact + post +", covariates),
+  "treatment + post +", covariates),
                data = data))
 }
 
