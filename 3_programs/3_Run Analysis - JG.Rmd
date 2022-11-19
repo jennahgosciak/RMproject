@@ -25,11 +25,12 @@ date <- Sys.Date() %>%
 
 ```{r}
 # define outcomes and covariates
-outcomes <- c("C000rac", "C000wac",
-       "CA01rac","CA01wac",
-       "CE01rac", "CE01wac",
-       "S000_same_tract", "S000_desig",
-       "S000_elig")
+outcomes <- c("C000rac", 
+              "C000wac",
+              "CE01rac", "CE01wac", "CE02rac", "CE02wac", "CE03rac", "CE03wac",
+              "CR01rac", "CR01wac", "CR02rac", "CR02wac", "CRothrac", "CRothwac",
+              "CT02rac", "CT02wac",
+              "S000_same_tract", "S000_desig", "S000_elig")
 
 log_outcomes <- str_c(outcomes, "_log")
 cov <- c("medfamincome", "poverty_rate")
@@ -37,19 +38,23 @@ cov <- c("medfamincome", "poverty_rate")
 
 ```{r}
 merged_oz <- readRDS("../2_output/analysis_file.RDS") %>% 
-  mutate(across(C000rac:SI03_same_tract, ~if_else(is.na(.), 0, .))) %>% 
-  mutate(across(C000rac:SI03_same_tract, .fns = list(log = ~log(if_else(. == 0, 1, .))), .names = "{.col}_{.fn}")) %>% 
+  mutate(CRothrac = rowSums(select(., c(CR03rac, CR04rac, CR05rac, CR07rac)), na.rm = T),
+         CRothwac = rowSums(select(., c(CR03wac, CR04wac, CR05wac, CR07wac)), na.rm = T)) %>% 
+  mutate(across(all_of(outcomes), ~if_else(is.na(.), 0, as.double(.)))) %>% 
+  mutate(across(all_of(outcomes), .fns = list(log = ~log(if_else(. == 0, 1, .))), .names = "{.col}_{.fn}")) %>% 
+  # create alternate treatment for a placebo test
   mutate(treatment2 = if_else(year >= 2015, 1, 0)) %>% 
   mutate(post_treatment = post*treatment,
          post_treatment2 = post*treatment2) %>% 
   mutate(poverty_rate = povertystatus / povertystatus_denom) %>% 
   filter(!is.na(GEOID) & !is.na(year)) %>% 
-  filter((CONTIGUOUS == FALSE & DESIGNATED == FALSE) | DESIGNATED == TRUE)
+  filter((LIC == TRUE & DESIGNATED == FALSE) | DESIGNATED == TRUE)
+
+merged_oz
 
 merged_oz %>% 
   group_by(year, DESIGNATED) %>% 
   summarize(n = n())
-
 ```
 
 ```{r}
@@ -69,11 +74,11 @@ trend_model <- function(outcome, data, covariates) {
 
 
 twfe_model <- function(outcome, data, covariates) {
-  return(plm(paste0(outcome, " ~ post_treatment"), 
+  return(plm(paste0(outcome, " ~ post_treatment + year_fact"), 
                data = data, 
-               index = c("GEOID", "year"), 
+               index = c("GEOID"), 
                model = "within", 
-               effect = "twoways"))
+               effect = "individual"))
   
 }
 
@@ -108,9 +113,7 @@ generate_model_output <- function(fit_model, outcome, treat_var, model_type, dat
                                     cluster = data$GEOID)
   }
   if (print == TRUE) {
-      sum_fit_plm %>% 
-      print() 
-    
+    print(str_c("Running ", model_type, " model for ", outcome))
     coef_vals %>% 
       print()
   }
@@ -136,7 +139,6 @@ generate_model_output <- function(fit_model, outcome, treat_var, model_type, dat
 run_model_outcome <- function(outcome, models, data=merged_oz, covariates=cov, print=TRUE) {
   covariates_orig <- covariates
   covariates <- str_c(covariates, collapse = " + ")
-  print(str_c("Running model for ", outcome))
   results <- data.frame()
   if ("twfe" %in% models) {
     fit_plm <- twfe_model(outcome, data, covariates)
