@@ -12,7 +12,7 @@ library(tidycensus)
 library(lehdr)
 library(sf)
 library(readxl)
-data_dir <- "C:/Users/Jennah/Desktop/Code/RMproject"
+data_dir <- "/Users/adelaide/Documents/Grad School/NYU/Fall 2022/Research Methods/Project"
 ```
 
 ```{r}
@@ -85,7 +85,7 @@ merged_oz <- merged_oz %>%
 
 
 merged_oz %>% 
-  saveRDS("../analysis_file.RDS")
+  saveRDS("/Users/adelaide/Documents/Grad School/NYU/Fall 2022/Research Methods/Project/analysis_file.RDS")
 
 merged_oz
 ```
