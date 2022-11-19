@@ -33,7 +33,7 @@ outcomes <- c("C000rac",
               "S000_same_tract", "S000_desig", "S000_elig")
 
 log_outcomes <- str_c(outcomes, "_log")
-cov <- c("medfamincome", "poverty_rate")
+cov <- c("log_median_household_income", "total_housing", "percent_white", "percent_postsec", "percent_rent", "percent_hc_covered", "percent_poverty", "percent_suplemental_income", "percent_employed")
 ```
 
 ```{r}
@@ -41,12 +41,22 @@ merged_oz <- readRDS("../2_output/analysis_file.RDS") %>%
   mutate(CRothrac = rowSums(select(., c(CR03rac, CR04rac, CR05rac, CR07rac)), na.rm = T),
          CRothwac = rowSums(select(., c(CR03wac, CR04wac, CR05wac, CR07wac)), na.rm = T)) %>% 
   mutate(across(all_of(outcomes), ~if_else(is.na(.), 0, as.double(.)))) %>% 
-  mutate(across(all_of(outcomes), .fns = list(log = ~log(if_else(. == 0, 1, .))), .names = "{.col}_{.fn}")) %>% 
-  # create alternate treatment for a placebo test
+  mutate(across(all_of(outcomes), .fns = list(log = ~log(if_else(. == 0, 1, as.double(.)))), .names = "{.col}_{.fn}")) %>% 
   mutate(post_treatment = post*treatment) %>% 
-  mutate(poverty_rate = povertystatus / povertystatus_denom) %>% 
+  mutate(percent_poverty = poverty / population) %>% 
+  mutate(percent_white = white_population / population) %>% 
+  mutate(percent_postsec = (associate + bachelor + professional_school + doctoral) / population) %>% 
+  mutate(minutes_commute = (minutes_commute) / employed_population) %>% 
+  mutate(percent_rent = (renter_occupied) / total_housing) %>% 
+  mutate(percent_hc_covered = (native_born_hc_covered) / native_born) %>% 
+  mutate(log_median_earnings = log(median_earnings)) %>% 
+  mutate(log_median_household_income = log(median_household_income)) %>% 
+  mutate(log_median_gross_rent = log(median_gross_rent)) %>% 
+  mutate(percent_suplemental_income = supplemental_income / population) %>% 
+  mutate(percent_employed = employed_population / population) %>% 
   filter(!is.na(GEOID) & !is.na(year)) %>% 
-  filter((LIC == TRUE & DESIGNATED == FALSE) | DESIGNATED == TRUE) %>% 
+  filter((CONTIGUOUS == FALSE & DESIGNATED == FALSE) | DESIGNATED == TRUE) %>%
+  mutate(C000rac_rate = if_else(population > 0, C000rac / population, 0)) %>% 
   mutate(year_fact2014 = if_else(year == 2014, 1, 0),
            year_fact2015 = if_else(year == 2015, 1, 0),
            year_fact2016 = if_else(year == 2016, 1, 0),
