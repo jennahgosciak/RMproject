@@ -17,18 +17,18 @@ data_dir <- "/Users/adelaide/Documents/Grad School/NYU/Fall 2022/Research Method
 
 ```{r}
 # load acs
-acs_oz <- read_csv(str_glue("{data_dir}/2_output/acs_oz_data.csv")) %>% 
+acs_oz <- read_csv(str_glue("../0_data/acs_oz_data.csv")) %>% 
   rename(acs_year = year)
 acs_oz
 ```
 ```{r}
-rac_oz <- read_csv(str_glue("{data_dir}/0_data/rac_oz.csv"))
+rac_oz <- read_csv(str_glue("../0_data/rac_oz.csv"))
 rac_oz
 
-wac_oz <- read_csv(str_glue("{data_dir}/0_data/wac_oz.csv"))
+wac_oz <- read_csv(str_glue("../0_data/wac_oz.csv"))
 wac_oz
 
-od_oz <-read_csv(str_glue("{data_dir}/0_data/od_data.csv"))
+od_oz <-read_csv(str_glue("../0_data/od_data.csv"))
 od_oz
 ```
 ```{r}
@@ -66,7 +66,12 @@ merged_oz <- merged_oz %>%
   mutate(CRothrac = rowSums(select(., c(CR03rac, CR04rac, CR05rac, CR07rac)), na.rm = T),
          CRothwac = rowSums(select(., c(CR03wac, CR04wac, CR05wac, CR07wac)), na.rm = T)) %>% 
   mutate(across(C000rac:CRothwac, ~if_else(is.na(.), 0, as.double(.)))) %>% 
-  mutate(across(C000rac:CRothwac, .fns = list(log = ~log(if_else(. == 0, 1, as.double(.)))), .names = "{.col}_{.fn}")) %>% 
+  mutate(across(C000rac:CRothwac, .fns = list(log = ~log(if_else(. == 0, 1, as.double(.)))), .names = "{.col}_{.fn}"))  %>% 
+  arrange(GEOID, year) %>% 
+  group_by(GEOID) %>% 
+  arrange(year, .by_group = TRUE) %>% 
+  mutate(across(C000rac:CRothwac, .fns = lst(pctchange = ~((./dplyr::lag(.) - 1) * 100)), .names = "{.col}_{.fn}")) %>%
+  ungroup() %>% 
   mutate(post_treatment = post*treatment) %>% 
   mutate(percent_poverty = poverty / population) %>% 
   mutate(percent_white = white_population / population) %>% 
@@ -85,7 +90,7 @@ merged_oz <- merged_oz %>%
 
 
 merged_oz %>% 
-  saveRDS("/Users/adelaide/Documents/Grad School/NYU/Fall 2022/Research Methods/Project/analysis_file.RDS")
+  saveRDS("../2_output/analysis_file.RDS")
 
 merged_oz
 ```
