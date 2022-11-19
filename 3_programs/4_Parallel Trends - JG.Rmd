@@ -39,9 +39,7 @@ cov <- c("medfamincome", "poverty_rate")
 merged_oz <- readRDS("../2_output/analysis_file.RDS") %>% 
   mutate(across(C000rac:SI03_same_tract, ~if_else(is.na(.), 0, .))) %>% 
   mutate(across(C000rac:SI03_same_tract, .fns = list(log = ~log(if_else(. == 0, 1, .))), .names = "{.col}_{.fn}")) %>% 
-  mutate(treatment2 = if_else(year >= 2015, 1, 0)) %>% 
-  mutate(post_treatment = post*treatment,
-         post_treatment2 = post*treatment2) %>% 
+  mutate(post_treatment = post*treatment) %>% 
   mutate(poverty_rate = povertystatus / povertystatus_denom) %>% 
   filter(!is.na(GEOID) & !is.na(year)) %>% 
   filter((CONTIGUOUS == FALSE & DESIGNATED == FALSE) | DESIGNATED == TRUE) %>%
