@@ -62,8 +62,30 @@ merged_oz %>%
   group_by(year, post, post_treat, treatment) %>% 
   summarize(n = n())
 
+merged_oz <- merged_oz %>% 
+  mutate(CRothrac = rowSums(select(., c(CR03rac, CR04rac, CR05rac, CR07rac)), na.rm = T),
+         CRothwac = rowSums(select(., c(CR03wac, CR04wac, CR05wac, CR07wac)), na.rm = T)) %>% 
+  mutate(across(C000rac:CRothwac, ~if_else(is.na(.), 0, as.double(.)))) %>% 
+  mutate(across(C000rac:CRothwac, .fns = list(log = ~log(if_else(. == 0, 1, as.double(.)))), .names = "{.col}_{.fn}")) %>% 
+  mutate(post_treatment = post*treatment) %>% 
+  mutate(percent_poverty = poverty / population) %>% 
+  mutate(percent_white = white_population / population) %>% 
+  mutate(percent_postsec = (associate + bachelor + professional_school + doctoral) / population) %>% 
+  mutate(minutes_commute = (minutes_commute) / employed_population) %>% 
+  mutate(percent_rent = (renter_occupied) / total_housing) %>% 
+  mutate(percent_hc_covered = (native_born_hc_covered) / native_born) %>% 
+  mutate(log_median_earnings = log(median_earnings)) %>% 
+  mutate(log_median_household_income = log(median_household_income)) %>% 
+  mutate(log_median_gross_rent = log(median_gross_rent)) %>% 
+  mutate(percent_suplemental_income = supplemental_income / population) %>% 
+  mutate(percent_employed = employed_population / population) %>% 
+  filter(!is.na(GEOID) & !is.na(year)) %>% 
+  filter((CONTIGUOUS == FALSE & DESIGNATED == FALSE) | DESIGNATED == TRUE) %>%
+  mutate(C000rac_rate = if_else(population > 0, C000rac / population, 0))
+
+
 merged_oz %>% 
-  saveRDS("../2_output/analysis_file.RDS")
+  saveRDS("../analysis_file.RDS")
 
 merged_oz
 ```
