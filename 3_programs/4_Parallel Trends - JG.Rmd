@@ -17,7 +17,7 @@ library(plm)
 library(lmtest)
 library(sandwich)
 library(wfe)
-data_dir <- "/Users/adelaide/Documents/Grad School/NYU/Fall 2022/Research Methods/Project"
+data_dir <- "C:/Users/Jennah/Desktop/Code/RMproject"
 
 date <- Sys.Date() %>% 
   str_replace_all("-", "_")
@@ -27,7 +27,7 @@ date <- Sys.Date() %>%
 # define outcomes and covariates
 outcomes <- c("C000rac", 
               "C000wac",
-              "CE01rac", "CE01wac", "CE02rac", "CE02wac", "CE03rac", "CEO3wac",
+              "CE01rac", "CE01wac", "CE02rac", "CE02wac", "CE03rac", "CE03wac",
               "CR01rac", "CR01wac", "CR02rac", "CR02wac", "CRothrac", "CRothwac",
               "CT02rac", "CT02wac",
               "S000_same_tract", "S000_desig", "S000_elig")
@@ -38,12 +38,11 @@ log_outcomes <- str_c(outcomes, "_log")
 ```
 
 ```{r}
-
-merged_oz <- readRDS("../analysis_file.RDS") %>% 
+merged_oz <- readRDS("../2_output/analysis_file.RDS") %>% 
   mutate(CRothrac = rowSums(select(., c(CR03rac, CR04rac, CR05rac, CR07rac)), na.rm = T),
          CRothwac = rowSums(select(., c(CR03wac, CR04wac, CR05wac, CR07wac)), na.rm = T)) %>% 
-  mutate(across(C000rac:CRothwac, ~if_else(is.na(.), 0, as.double(.)))) %>% 
-  mutate(across(C000rac:CRothwac, .fns = list(log = ~log(if_else(. == 0, 1, as.double(.)))), .names = "{.col}_{.fn}")) %>% 
+  mutate(across(all_of(outcomes), ~if_else(is.na(.), 0, as.double(.)))) %>% 
+  mutate(across(all_of(outcomes), .fns = list(log = ~log(if_else(. == 0, 1, as.double(.)))), .names = "{.col}_{.fn}")) %>% 
   mutate(post_treatment = post*treatment) %>% 
   mutate(percent_poverty = poverty / population) %>% 
   mutate(percent_white = white_population / population) %>% 
@@ -208,7 +207,7 @@ run_model_outcome <- function(outcome, models, data, covariates=cov, print=TRUE)
   if ("did" %in% models) {
     fit_did <- pooled_ols(outcome, data, covariates)
     results <- bind_rows(results, generate_model_output(fit_did, outcome,
-                                                        "treatment", "did", data, print=print)) 
+                                                        "treatment:year", "did", data, print=print)) 
   }
  
   return(results)
@@ -216,8 +215,7 @@ run_model_outcome <- function(outcome, models, data, covariates=cov, print=TRUE)
 
 models <- c("did")
 run_model_outcome("S000_same_tract", models, data = merged_oz %>% 
-                    filter(post == 0),
-                  print=T)
+                    filter(post == 0), print=T)
 ```
 ```{r}
 results <- map_dfr(c(log_outcomes), ~run_model_outcome(., models=models, 
