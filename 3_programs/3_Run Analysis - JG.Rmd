@@ -189,12 +189,12 @@ run_model_outcome <- function(outcome, models, data=merged_oz, covariates=cov, p
   if ("event" %in% models) {
     fit_trend_lm <- event_model(outcome, data)
     results <- bind_rows(results, generate_model_output(fit_trend_lm, outcome,
-                                                        "treatment:year_fact2018", "event", data, print=print)) 
+                                                        "treatment:year_fact2019", "event", data, print=print)) 
   }
   return(results)
 }
 
-models <- c("event")
+models <- c("twfe", "twfe_cov", "did", "event")
 run_model_outcome("C000rac_log", models,  print=T)
 ```
 ```{r}
