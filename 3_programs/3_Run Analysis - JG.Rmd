@@ -194,7 +194,7 @@ run_model_outcome <- function(outcome, models, data=merged_oz, covariates=cov, p
   return(results)
 }
 
-models <- c("twfe", "twfe_cov", "did", "event")
+models <- c("did")
 run_model_outcome("C000rac_log", models,  print=T)
 ```
 ```{r}
@@ -202,7 +202,7 @@ results <- map_dfr(log_outcomes, ~run_model_outcome(., models=models, print=FALS
 results
 
 # save to output
-results %>% 
+results %>%
   write_csv(str_glue("../2_output/results_{date}.csv"), na="")
 ```
 
@@ -210,11 +210,12 @@ results %>%
 ```{r}
 # placebo test
 placebo_df <- merged_oz %>% 
-  select(-c(post, post_treatment)) %>% 
+  filter(post == 0) %>% 
+  select(-c(post, post_treatment)) %>%
   mutate(post = if_else(year >= 2015, 1, 0),
          post_treatment = post*treatment)
 
-placebo_results <- map_dfr(log_outcomes, ~run_model_outcome(., models=models, data = placebo_df,
+placebo_results <- map_dfr(log_outcomes, ~run_model_outcome(., models=c("twfe_cov"), data = placebo_df,
                                                     print=FALSE))
 placebo_results
 
