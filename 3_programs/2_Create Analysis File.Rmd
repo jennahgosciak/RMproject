@@ -38,9 +38,9 @@ rac_clean <- rac_oz %>%
   rename_at(vars(C000:CS02), ~str_c(., "rac"))
 
 wac_clean <- wac_oz %>% 
-  select(GEOID, year, C000:CS02) %>% 
+  select(GEOID, year, C000:CFS05) %>% 
   mutate(GEOID = as.numeric(GEOID)) %>% 
-  rename_at(vars(C000:CS02), ~str_c(., "wac"))
+  rename_at(vars(C000:CFS05), ~str_c(., "wac"))
 
 od_clean <- od_oz %>% 
   select(GEOID, year, S000_desig:SI03_same_tract) %>% 
