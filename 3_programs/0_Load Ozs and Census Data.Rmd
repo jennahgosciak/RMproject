@@ -12,7 +12,7 @@ library(tidycensus)
 library(lehdr)
 library(sf)
 library(readxl)
-data_dir <- "C:/Users/Jennah/Desktop/Code/RMproject/0_data"
+data_dir <- "/Users/adelaide/Documents/Grad School/NYU/Fall 2022/Research Methods/Project"
 ```
 
 ```{r}
@@ -27,21 +27,18 @@ download.file(shell_2017, str_glue("{shelldir}/{shellname}"))
 ```
 ```{r}
 #Load
-codebook <- read_xlsx(path(data_dir, "codebook.xlsx"))
-codebook
+acs_covlist <- read_xlsx(path(data_dir, "codebook.xlsx")) %>% 
+  filter(Include ==1)
 
-ourcovariates <- codebook$Variable[which(codebook$Include==1)]
-ourcovariates
+acs_covs <- acs_covlist$`ACS Code`
+names(acs_covs) <- acs_covlist$Variable
 ```
 
 ```{r}
 # load acs data
 get_acs_yr <- function(yr){
   get_acs(geography = "tract", 
-          variables = c(medfamincome = "B19113_001", population_uw = "B00001_001",
-                        povertystatus_denom = "B06012_001",
-                        povertystatus = "B06012_002",
-                        totalpop = "B01001_001"), 
+          variables = c(acs_covs), 
           state = c(state.abb, "dc"), 
           year = yr) %>% 
     mutate(year = yr) %>% 
@@ -87,22 +84,22 @@ acs_oz_tracts_all <- bind_rows(acs_oz_tracts, acs_changeGEOID2010) %>%
   spread(key=variable, value=estimate)
 
 acs_oz_tracts_all %>% 
-  write_csv("../2_output/acs_oz_data.csv", na = "")
+  write_csv("/Users/adelaide/Documents/Grad School/NYU/Fall 2022/Research Methods/Project/acs_oz_data.csv", na = "")
 ```
 
 ```{r}
 # examine range and missing values
 
 acs_oz_tracts_all %>% 
-    summarise(mean = mean(medincome, na.rm = T),
-              range = paste(min(medincome, na.rm = T), "-", max(medincome, na.rm = T)),
-              na = sum(is.na(medincome)))
+    summarise(mean = mean(associate, na.rm = T),
+              range = paste(min(associate, na.rm = T), "-", max(associate, na.rm = T)),
+              na = sum(is.na(associate)))
 
 acs_oz_tracts_all %>% 
     group_by(DESIGNATED) %>% 
-    summarise(mean = mean(medincome, na.rm = T),
-                    range = paste(min(medincome, na.rm = T), "-", max(medincome, na.rm = T)),
-                    na = sum(is.na(medincome)))
+    summarise(mean = mean(associate, na.rm = T),
+                    range = paste(min(associate, na.rm = T), "-", max(associate, na.rm = T)),
+                    na = sum(is.na(associate)))
 
 
 ```
