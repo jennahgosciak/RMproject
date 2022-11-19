@@ -33,6 +33,7 @@ outcomes <- c("C000rac",
               "S000_same_tract", "S000_desig", "S000_elig")
 
 log_outcomes <- str_c(outcomes, "_log")
+pct_outcomes <- str_c(outcomes, "_pctchange")
 
 
 ```
@@ -202,8 +203,13 @@ run_model_outcome("S000_same_tract", models, data = merged_oz %>%
 ```{r}
 results <- map_dfr(c(log_outcomes), ~run_model_outcome(., models=models, 
                                                                  data = merged_oz %>% 
-                                                                   filter(post == 0), print=T))
+                                                                   filter(post == 0), print=F))
 results
+
+resultspct <- map_dfr(c(log_outcomes), ~run_model_outcome(., models=models, 
+                                                                 data = merged_oz %>% 
+                                                                   filter(post == 0 & year > 2014), print=F))
+resultspct
 ```
 
 ```{r}
