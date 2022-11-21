@@ -33,37 +33,18 @@ outcomes <- c("C000rac",
               "S000_same_tract", "S000_desig", "S000_elig")
 
 log_outcomes <- str_c(outcomes, "_log")
+pct_outcomes <- str_c(outcomes, "_pctchange")
 cov <- c("log_median_household_income", "total_housing", "percent_white", "percent_postsec", "percent_rent", "percent_hc_covered", "percent_poverty", "percent_suplemental_income", "percent_employed")
 ```
 
 ```{r}
 merged_oz <- readRDS("../2_output/analysis_file.RDS") %>% 
-  mutate(CRothrac = rowSums(select(., c(CR03rac, CR04rac, CR05rac, CR07rac)), na.rm = T),
-         CRothwac = rowSums(select(., c(CR03wac, CR04wac, CR05wac, CR07wac)), na.rm = T)) %>% 
-  mutate(across(all_of(outcomes), ~if_else(is.na(.), 0, as.double(.)))) %>% 
-  mutate(across(all_of(outcomes), .fns = list(log = ~log(if_else(. == 0, 1, as.double(.)))), .names = "{.col}_{.fn}")) %>% 
-  mutate(post_treatment = post*treatment) %>% 
-  mutate(percent_poverty = poverty / population) %>% 
-  mutate(percent_white = white_population / population) %>% 
-  mutate(percent_postsec = (associate + bachelor + professional_school + doctoral) / population) %>% 
-  mutate(minutes_commute = (minutes_commute) / employed_population) %>% 
-  mutate(percent_rent = (renter_occupied) / total_housing) %>% 
-  mutate(percent_hc_covered = (native_born_hc_covered) / native_born) %>% 
-  mutate(log_median_earnings = log(median_earnings)) %>% 
-  mutate(log_median_household_income = log(median_household_income)) %>% 
-  mutate(log_median_gross_rent = log(median_gross_rent)) %>% 
-  mutate(percent_suplemental_income = supplemental_income / population) %>% 
-  mutate(percent_employed = employed_population / population) %>% 
-  filter(!is.na(GEOID) & !is.na(year)) %>% 
-  filter((CONTIGUOUS == FALSE & DESIGNATED == FALSE) | DESIGNATED == TRUE) %>%
-  mutate(C000rac_rate = if_else(population > 0, C000rac / population, 0)) %>% 
   mutate(year_fact2014 = if_else(year == 2014, 1, 0),
            year_fact2015 = if_else(year == 2015, 1, 0),
            year_fact2016 = if_else(year == 2016, 1, 0),
            year_fact2017 = if_else(year == 2017, 1, 0),
            year_fact2018 = if_else(year == 2018, 1, 0),
            year_fact2019 = if_else(year == 2019, 1, 0))
-
 merged_oz
 
 merged_oz %>% 
@@ -97,9 +78,16 @@ twfe_model <- function(outcome, data, covariates) {
   
 }
 
-twfe_model_covariates <- function(outcome, data, covariates) {
-  covariates_list <- str_c(covariates, ":year_fact") %>% 
+gen_covariates_int <- function(covariates, year_vars) {
+  covariates_list <- map(year_vars, ~str_c(covariates, ":", .)) %>% 
+    unlist() %>% 
     str_c(collapse = " + ")
+  return(covariates_list)
+    
+}
+
+twfe_model_covariates <- function(outcome, data, covariates) {
+  covariates_list <- gen_covariates_int(covariates, str_c("year_fact", c(2014:2019)))
   return(plm(paste0(outcome, " ~ post_treatment + ", covariates_list), 
                data = data, 
                index = c("GEOID"), 
@@ -194,11 +182,11 @@ run_model_outcome <- function(outcome, models, data=merged_oz, covariates=cov, p
   return(results)
 }
 
-models <- c("did")
+models <- c("did", "twfe_cov", "twfe", "event")
 run_model_outcome("C000rac_log", models,  print=T)
 ```
 ```{r}
-results <- map_dfr(log_outcomes, ~run_model_outcome(., models=models, print=FALSE))
+results <- map_dfr(c(log_outcomes, pct_outcomes), ~run_model_outcome(., models=models, print=FALSE))
 results
 
 # save to output
@@ -215,7 +203,7 @@ placebo_df <- merged_oz %>%
   mutate(post = if_else(year >= 2015, 1, 0),
          post_treatment = post*treatment)
 
-placebo_results <- map_dfr(log_outcomes, ~run_model_outcome(., models=c("twfe_cov"), data = placebo_df,
+placebo_results <- map_dfr(c(log_outcomes, pct_outcomes), ~run_model_outcome(., models=models), data = placebo_df,
                                                     print=FALSE))
 placebo_results
 

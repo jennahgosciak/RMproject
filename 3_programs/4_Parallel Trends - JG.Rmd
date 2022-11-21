@@ -39,7 +39,6 @@ pct_outcomes <- str_c(outcomes, "_pctchange")
 ```
 
 ```{r}
-
 merged_oz <- readRDS("../2_output/analysis_file.RDS")
 
 merged_oz %>% 
@@ -141,6 +140,7 @@ merged_oz %>%
 ```{r}
 # functions for each model
 pooled_ols <- function(outcome, data, covariates) {
+  
   return(lm(paste0(outcome, " ~ treatment:year + year + treatment +  ", str_c(covariates, collapse = "+")),
                data = data))
 }
@@ -205,12 +205,40 @@ results <- map_dfr(c(log_outcomes), ~run_model_outcome(., models=models,
                                                                  data = merged_oz %>% 
                                                                    filter(post == 0), print=F))
 results
+```
 
-resultspct <- map_dfr(c(log_outcomes), ~run_model_outcome(., models=models, 
+```{r}
+rac_log_outcomes <- log_outcomes[str_detect(log_outcomes, "rac")]
+wac_log_outcomes <- log_outcomes[str_detect(log_outcomes, "wac")]
+
+rac_pct_outcomes <- pct_outcomes[str_detect(pct_outcomes, "rac")]
+wac_pct_outcomes <- pct_outcomes[str_detect(pct_outcomes, "wac")]
+
+# drop tracts with low employment
+merged_oz %>% 
+  summarize(rac_p5 = quantile(C000rac, 0.05),
+            wac_p5 = quantile(C000wac, 0.05))
+```
+
+```{r}
+results_subsample_rac <- map_dfr(c(rac_log_outcomes), ~run_model_outcome(., models=models, 
                                                                  data = merged_oz %>% 
-                                                                   filter(post == 0 & year > 2014), print=F))
+                                                                   filter(post == 0 & C000rac > 500), print=F))
+results_subsample_rac
+
+results_subsample_wac <- map_dfr(c(wac_log_outcomes), ~run_model_outcome(., models=models, 
+                                                                 data = merged_oz %>% 
+                                                                   filter(post == 0 & C000wac > 50), print=F))
+results_subsample_wac
+```
+
+```{r}
+resultspct <- map_dfr(pct_outcomes, ~run_model_outcome(., models=models, 
+                                                                 data = merged_oz %>% 
+                                                                 filter(year > 2014), print=F))
 resultspct
 ```
+
 
 ```{r}
 ols_balance <- function(outcome, data) {
@@ -232,8 +260,8 @@ run_balance_tests <- function(outcome, data, print=TRUE) {
 }
 
 # balance test
-balance_tests <- map_dfr(c(cov), ~run_balance_tests(., merged_oz %>% 
-                                                                                 filter(year == 2017)))
+balance_tests <- map_dfr(c(cov), ~run_balance_tests(., merged_oz %>%
+                                                      filter(year == 2017)))
 balance_tests
 ```
 
