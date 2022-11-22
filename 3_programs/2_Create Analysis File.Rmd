@@ -71,7 +71,6 @@ merged_oz <- merged_oz %>%
   group_by(GEOID) %>% 
   arrange(year, .by_group = TRUE) %>% 
   mutate(across(C000rac:CRothwac, .fns = lst(pctchange = ~((./dplyr::lag(.) - 1) * 100)), .names = "{.col}_{.fn}")) %>%
-  mutate(across(ends_with("pctchange"), ~if_else(is.na(.) | . == Inf, 0, .))) %>%
   ungroup() %>% 
   mutate(post_treatment = post*treatment) %>% 
   mutate(percent_poverty = poverty / population) %>% 

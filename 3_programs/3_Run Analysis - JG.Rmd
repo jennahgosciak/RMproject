@@ -183,32 +183,59 @@ run_model_outcome <- function(outcome, models, data=merged_oz, covariates=cov, p
 }
 
 models <- c("did", "twfe_cov", "twfe", "event")
-run_model_outcome("C000rac_log", models,  print=T)
+# run_model_outcome("C000rac_log", models,  print=T)
 ```
+
 ```{r}
-results <- map_dfr(c(log_outcomes, pct_outcomes), ~run_model_outcome(., models=models, print=FALSE))
+results <- map_dfr(c(log_outcomes), ~run_model_outcome(., models=models, 
+                                                       data = merged_oz, print=FALSE))
 results
 
 # save to output
 results %>%
-  write_csv(str_glue("../2_output/results_{date}.csv"), na="")
+  write_csv(str_glue("../2_output/results_log_{date}.csv"), na="")
 ```
 
+```{r}
+results <- map_dfr(c(pct_outcomes), ~run_model_outcome(., models=c("twfe", "twfe_cov",
+                                                                   "did"), 
+                                                       data = merged_oz %>% 
+                                                         filter(year > 2014), print=FALSE))
+results
+
+# save to output
+results %>%
+  write_csv(str_glue("../2_output/results_pct_{date}.csv"), na="")
+```
 
 ```{r}
 # placebo test
 placebo_df <- merged_oz %>% 
   filter(post == 0) %>% 
   select(-c(post, post_treatment)) %>%
-  mutate(post = if_else(year >= 2015, 1, 0),
+  mutate(post = if_else(year >= 2016, 1, 0),
          post_treatment = post*treatment)
 
-placebo_results <- map_dfr(c(log_outcomes, pct_outcomes), ~run_model_outcome(., models=models), data = placebo_df,
+placebo_results <- map_dfr(c(log_outcomes), ~run_model_outcome(., models=c("did", "twfe", "twfe_cov"), 
+                                                               data = placebo_df,
                                                     print=FALSE))
 placebo_results
 
 # save to output
 placebo_results %>% 
-  write_csv(str_glue("../2_output/placebo_results_{date}.csv"), na="")
+  write_csv(str_glue("../2_output/placebo_log_{date}.csv"), na="")
+```
+
+```{r}
+placebo_results <- map_dfr(c(pct_outcomes), ~run_model_outcome(., 
+                                                               models=c("did", "twfe", "twfe_cov"), 
+                                                               data = placebo_df %>% 
+                                                                 filter(year > 2014),
+                                                    print=FALSE))
+placebo_results
+
+# save to output
+placebo_results %>% 
+  write_csv(str_glue("../2_output/placebo_pct_{date}.csv"), na="")
 ```
 
