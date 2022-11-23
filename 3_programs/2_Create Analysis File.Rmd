@@ -12,7 +12,7 @@ library(tidycensus)
 library(lehdr)
 library(sf)
 library(readxl)
-data_dir <- "/Users/adelaide/Documents/Grad School/NYU/Fall 2022/Research Methods/Project"
+data_dir <- "/Users/adelaide/Documents/GitHub/RMproject"
 ```
 
 ```{r}
@@ -46,6 +46,7 @@ od_clean <- od_oz %>%
   select(GEOID, year, S000_desig:SI03_same_tract) %>% 
   mutate(GEOID = as.numeric(GEOID))
 ```
+
 
 ```{r}
 merged_oz <- rac_clean %>% 
@@ -90,7 +91,24 @@ merged_oz <- merged_oz %>%
   filter((CONTIGUOUS == FALSE & DESIGNATED == FALSE) | DESIGNATED == TRUE) %>%
   mutate(C000rac_rate = if_else(population > 0, C000rac / population, 0))
 
+```
 
+```{r}
+
+#Load MSA
+MSA_2018 <-  read_excel("../0_data/list1_Sep_2018.xlsx")
+
+MSA_2018 <- MSA_2018 %>% 
+  rename(STATE = `FIPS State Code`, COUNTY = `FIPS County Code`) %>% 
+  select( `Metropolitan Division Code`,`Metropolitan Division Title`,STATE, COUNTY, `Our CBSA`)
+
+merged_oz <-  merged_oz %>% 
+  left_join(MSA_2018, by = c("STATE", "COUNTY"))
+
+
+```
+
+```{r}
 merged_oz %>% 
   saveRDS("../2_output/analysis_file.RDS")
 
