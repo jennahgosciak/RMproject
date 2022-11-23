@@ -13,6 +13,7 @@ library(lehdr)
 library(sf)
 library(readxl)
 data_dir <- "/Users/adelaide/Documents/GitHub/RMproject"
+
 ```
 
 ```{r}
@@ -85,6 +86,7 @@ acs_oz_tracts_all <- bind_rows(acs_oz_tracts, acs_changeGEOID2010) %>%
 
 acs_oz_tracts_all %>% 
   write_csv("../2_output/acs_oz_data.csv", na = "")
+
 ```
 
 ```{r}

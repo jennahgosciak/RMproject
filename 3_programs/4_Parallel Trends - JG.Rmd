@@ -33,12 +33,12 @@ outcomes <- c("C000rac",
               "S000_same_tract", "S000_desig", "S000_elig")
 
 log_outcomes <- str_c(outcomes, "_log")
+pct_outcomes <- str_c(outcomes, "_pctchange")
 
 
 ```
 
 ```{r}
-
 merged_oz <- readRDS("../2_output/analysis_file.RDS")
 
 merged_oz %>% 
@@ -52,94 +52,49 @@ cov <- c("log_median_household_income", "total_housing", "percent_white", "perce
 
 # Plots
 
-```{r}
-merged_oz %>% 
-  group_by(year, treatment) %>% 
-  summarize(C000rac_avg = mean(C000rac_rate, na.rm = T)) %>% 
-  ggplot(aes(x = year, y = C000rac_avg)) +
-  geom_line(aes(color=if_else(treatment == 1, "Selected", "Eligible"))) +
-  theme_classic() +
-  labs(color = "Designation", title = "Average jobs (RAC) per capita") +
-  scale_y_continuous(limits = c(0.35, 0.45))
+```{r, fig.height = 15, fig.width = 5}
+generate_parallel_trends_plot <- function(df, type, n = 5) {
+  if (type == "log") {
+    outcomes_list <- log_outcomes[c(1:n)]
+  } else {
+    outcomes_list <- pct_outcomes[c(1:n)]
+  }
+  df_pivot <- df %>% 
+      pivot_longer(outcomes_list, names_to = "outcomes", values_to = "employment") %>% 
+      filter(year > 2014) %>% 
+      group_by(year, treatment, outcomes) %>% 
+      mutate(employment = if_else(employment == Inf, 0, employment)) %>% 
+      summarize(employment = mean(employment, na.rm = T))
+  
+  df_pivot %>% 
+      ggplot(aes(x = year, y = employment)) +
+      geom_line(aes(color=if_else(treatment == 1, "Selected", "Eligible"))) +
+      #geom_smooth(aes(color=if_else(treatment == 1, "Selected", "Eligible")),
+      #            method=lm) +
+      theme_classic() +
+      labs(color = "Designation") +
+      facet_wrap(~outcomes, ncol=1)
+}
 
-
-merged_oz %>% 
-  group_by(year, treatment) %>% 
-  summarize(C000rac_avg = mean(C000rac_log, na.rm = T)) %>% 
-  ggplot(aes(x = year, y = C000rac_avg)) +
-  geom_line(aes(color=if_else(treatment == 1, "Selected", "Eligible"))) +
-  theme_classic() +
-  labs(color = "Designation")
-
-merged_oz %>% 
-  group_by(year, treatment) %>% 
-  summarize(C000wac_avg = mean(C000wac_log, na.rm = T)) %>% 
-  ggplot(aes(x = year, y = C000wac_avg)) +
-  geom_line(aes(color=if_else(treatment == 1, "Selected", "Eligible"))) +
-  theme_classic() +
-  labs(color = "Designation")
-
-merged_oz %>% 
-  arrange(GEOID, year) %>% 
-  group_by(GEOID) %>% 
-  arrange(year, .by_group = TRUE) %>% 
-  mutate(C000rac_pct_change = ((C000rac/dplyr::lag(C000rac) - 1) * 100)) %>% 
-  group_by(treatment, year) %>% 
-  summarize(C000rac_avg = mean(C000rac_pct_change, na.rm = T)) %>% 
-  ggplot(aes(x = year, y = C000rac_avg)) +
-  geom_line(aes(color=if_else(treatment == 1, "Selected", "Eligible"))) +
-  theme_classic() +
-  labs(color = "Designation")
+generate_parallel_trends_plot(merged_oz, "pct")
 ```
 
-```{r}
+```{r, fig.height = 15, fig.width = 5}
 # same as above, but dropping small tracts
-merged_oz %>% 
-  filter(C000rac > 1000) %>% 
-  group_by(year, treatment) %>% 
-  summarize(C000rac_avg = mean(C000rac_rate, na.rm = T)) %>% 
-  ggplot(aes(x = year, y = C000rac_avg)) +
-  geom_line(aes(color=if_else(treatment == 1, "Selected", "Eligible"))) +
-  theme_classic() +
-  labs(color = "Designation") +
-  scale_y_continuous(limits = c(0.35, 0.45))
+generate_parallel_trends_plot(merged_oz %>% 
+                                filter(C000rac > 1000), "pct")
+```
 
-
-merged_oz %>% 
-  filter(C000rac > 1000) %>% 
-  group_by(year, treatment) %>% 
-  summarize(C000rac_avg = mean(C000rac_log, na.rm = T)) %>% 
-  ggplot(aes(x = year, y = C000rac_avg)) +
-  geom_line(aes(color=if_else(treatment == 1, "Selected", "Eligible"))) +
-  theme_classic() +
-  labs(color = "Designation")
-
-merged_oz %>% 
-  filter(C000wac > 1000) %>% 
-  group_by(year, treatment) %>% 
-  summarize(C000wac_avg = mean(C000wac_log, na.rm = T)) %>% 
-  ggplot(aes(x = year, y = C000wac_avg)) +
-  geom_line(aes(color=if_else(treatment == 1, "Selected", "Eligible"))) +
-  theme_classic() +
-  labs(color = "Designation")
-
-merged_oz %>% 
-  filter(C000rac > 1000) %>% 
-  arrange(GEOID, year) %>% 
-  group_by(GEOID) %>% 
-  arrange(year, .by_group = TRUE) %>% 
-  mutate(C000rac_pct_change = ((C000rac/dplyr::lag(C000rac) - 1) * 100)) %>% 
-  group_by(treatment, year) %>% 
-  summarize(C000rac_avg = mean(C000rac_pct_change, na.rm = T)) %>% 
-  ggplot(aes(x = year, y = C000rac_avg)) +
-  geom_line(aes(color=if_else(treatment == 1, "Selected", "Eligible"))) +
-  theme_classic() +
-  labs(color = "Designation")
+```{r, fig.height = 15, fig.width = 5}
+# same as above, but dropping small tracts
+generate_parallel_trends_plot(merged_oz %>% 
+                                filter(C000wac > 50), "pct")
 ```
 
 ```{r}
 # functions for each model
 pooled_ols <- function(outcome, data, covariates) {
+  
   return(lm(paste0(outcome, " ~ treatment:year + year + treatment +  ", str_c(covariates, collapse = "+")),
                data = data))
 }
@@ -202,9 +157,42 @@ run_model_outcome("S000_same_tract", models, data = merged_oz %>%
 ```{r}
 results <- map_dfr(c(log_outcomes), ~run_model_outcome(., models=models, 
                                                                  data = merged_oz %>% 
-                                                                   filter(post == 0), print=T))
+                                                                   filter(post == 0), print=F))
 results
 ```
+
+```{r}
+rac_log_outcomes <- log_outcomes[str_detect(log_outcomes, "rac")]
+wac_log_outcomes <- log_outcomes[str_detect(log_outcomes, "wac")]
+
+rac_pct_outcomes <- pct_outcomes[str_detect(pct_outcomes, "rac")]
+wac_pct_outcomes <- pct_outcomes[str_detect(pct_outcomes, "wac")]
+
+# drop tracts with low employment
+merged_oz %>% 
+  summarize(rac_p5 = quantile(C000rac, 0.05),
+            wac_p5 = quantile(C000wac, 0.05))
+```
+
+```{r}
+results_subsample_rac <- map_dfr(c(rac_log_outcomes), ~run_model_outcome(., models=models, 
+                                                                 data = merged_oz %>% 
+                                                                   filter(post == 0 & C000rac > 500), print=F))
+results_subsample_rac
+
+results_subsample_wac <- map_dfr(c(wac_log_outcomes), ~run_model_outcome(., models=models, 
+                                                                 data = merged_oz %>% 
+                                                                   filter(post == 0 & C000wac > 50), print=F))
+results_subsample_wac
+```
+
+```{r}
+resultspct <- map_dfr(pct_outcomes, ~run_model_outcome(., models=models, 
+                                                                 data = merged_oz %>% 
+                                                                 filter(year > 2014), print=F))
+resultspct
+```
+
 
 ```{r}
 ols_balance <- function(outcome, data) {
@@ -226,8 +214,8 @@ run_balance_tests <- function(outcome, data, print=TRUE) {
 }
 
 # balance test
-balance_tests <- map_dfr(c(cov), ~run_balance_tests(., merged_oz %>% 
-                                                                                 filter(year == 2017)))
+balance_tests <- map_dfr(c(cov), ~run_balance_tests(., merged_oz %>%
+                                                      filter(year == 2017)))
 balance_tests
 ```
 

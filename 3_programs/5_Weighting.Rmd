@@ -17,7 +17,9 @@ library(plm)
 library(lmtest)
 library(sandwich)
 library(wfe)
-data_dir <- "C:/Users/Jennah/Desktop/Code/RMproject"
+library("MatchIt")
+library("optmatch")
+library("marginaleffects")
 
 date <- Sys.Date() %>% 
   str_replace_all("-", "_")
@@ -44,7 +46,8 @@ merged_oz <- readRDS("../2_output/analysis_file.RDS") %>%
            year_fact2016 = if_else(year == 2016, 1, 0),
            year_fact2017 = if_else(year == 2017, 1, 0),
            year_fact2018 = if_else(year == 2018, 1, 0),
-           year_fact2019 = if_else(year == 2019, 1, 0))
+           year_fact2019 = if_else(year == 2019, 1, 0)) %>% 
+  mutate(across(cov, ~if_else(is.na(.), 0, .)))
 merged_oz
 
 merged_oz %>% 
@@ -52,29 +55,69 @@ merged_oz %>%
   summarize(n = n())
 ```
 
+```{r}
+covariates <- str_c(cov, collapse = " + ")
+form <- formula(paste0("treatment ~", covariates))
+m.out0 <- matchit(form, data = merged_oz %>% 
+                  filter(year == 2014),
+                 method = NULL, distance = "glm")
+m.out0
 
+summary(m.out0)
+```
+```{r}
+# matching
+m.out1 <- matchit(form, data = merged_oz %>% 
+                    # we should only match on one year!
+                  filter(year == 2014),
+                  method = "nearest", distance = "glm")
+```
+
+```{r}
+summary(m.out1, un = FALSE)
+```
+```{r}
+plot(m.out1, type = "jitter", interactive = FALSE)
+```
+
+```{r}
+plot(m.out1, type = "density", interactive = FALSE,
+     which.xs = cov)
+```
+```{r}
+plot(summary(m.out1))
+```
+```{r}
+m.data <- match.data(m.out1)
+
+m.data_panel <- inner_join(merged_oz,
+                          m.data %>% 
+                            select(GEOID, subclass, weights, distance),
+                          using = "GEOID")
+head(m.data_panel)
+```
 ```{r}
 # functions for each model
 pooled_ols <- function(outcome, data, covariates) {
-  return(lm(paste0(outcome, " ~ treatment:post + ",
-  "treatment + post +", covariates),
-               data = data))
+  return(lm(formula(paste0(outcome, " ~ post_treatment + ",
+  "treatment + post + year_fact + ", covariates)),
+               data = data, weights=weights))
 }
 
 trend_model <- function(outcome, data, covariates) {
   return(lm(paste0(outcome, " ~ treatment:year:post + treatment:post + treatment:year +",
   "treatment + year + post +", covariates),
-               data = data))
+               data = data, weights=weights))
   
 }
 
 
 twfe_model <- function(outcome, data, covariates) {
-  return(plm(paste0(outcome, " ~ post_treatment"), 
+  return(plm(formula(paste0(outcome, " ~ post_treatment")), 
                data = data, 
                index = c("GEOID", "year"), 
                model = "within", 
-               effect = "twoways"))
+               effect = "twoways", weights=weights))
   
 }
 
@@ -92,7 +135,7 @@ twfe_model_covariates <- function(outcome, data, covariates) {
                data = data, 
                index = c("GEOID"), 
                model = "within", 
-               effect = "individual"))
+               effect = "individual", weights=weights))
   
 }
 
@@ -103,7 +146,8 @@ event_model <- function(outcome, data) {
                data = data, 
                index = c("GEOID"), 
                model = "within", 
-               effect = "individual")
+               effect = "individual",
+             weights=weights)
   
   return(mod)
 }
@@ -111,38 +155,33 @@ event_model <- function(outcome, data) {
 
 ```{r}
 generate_model_output <- function(fit_model, outcome, treat_var, model_type, data, print) {
-  sum_fit_plm <- summary(fit_model)
-
-  if (model_type %in% c("twfe", "twfe_cov", "event")) {
-    coef_names <- sum_fit_plm$coefficients %>% 
-          row.names()
-    
-    coef_vals <- coeftest(fit_model,
-                        vcovHC(fit_model, type = 'HC3', cluster = 'group'))
-  } else {
-    coef_names <- sum_fit_plm$coefficients[, 1] %>% 
-      names()
-    coef_vals <- coeftest(fit_model, vcov = vcovCL,
-                                    type = "HC1",
-                                    cluster = data$GEOID)
-  }
+  sum_fit_plm <-  summary(fit_model)
+  coef_vals <- comparisons(fit_model,
+                     variables = "post_treatment",
+                     vcov = ~GEOID,
+                     newdata = subset(data, post_treatment == 1),
+                     wts = "weights")
+  
   if (print == TRUE) {
     print(str_c("Running ", model_type, " model for ", outcome))
+    sum_fit_plm %>% 
+      print()
     coef_vals %>% 
+      head() %>% 
+      print()
+    summary(coef_vals) %>% 
       print()
   }
   
-  coef_pos <- which(treat_var == coef_names)
-  
-  coef <- round(sum_fit_plm$coefficients[coef_pos, 1], 3)
-  se <- round(coef_vals[coef_pos, 2], 3)
-  pval <- round(coef_vals[coef_pos, 4], 4)
+  coef <- round(summary(coef_vals)[1, 4], 3)
+  se <- round(summary(coef_vals)[1, 5], 3)
+  pval <- round(summary(coef_vals)[1, 7], 4)
   coef_ast <- case_when(pval < 0.01 ~ paste0(coef, "***"),
                         pval < 0.05 ~ paste0(coef, "**"),
                         pval < 0.1 ~ paste0(coef, "*"))
   
   return(data.frame("outcome" = outcome,
-               "treatment_post" = sum_fit_plm$coefficients[coef_pos, 1],
+               "treatment_post" = coef,
                "coef_asterisk" = coef_ast,
                "se" = se,
                "pval" = pval,
@@ -150,7 +189,8 @@ generate_model_output <- function(fit_model, outcome, treat_var, model_type, dat
                "model_type" = model_type))
 }
 
-run_model_outcome <- function(outcome, models, data=merged_oz, covariates=cov, print=TRUE) {
+run_model_outcome <- function(outcome, models, data=m.data_panel,
+                              covariates=cov, print=TRUE) {
   covariates_orig <- covariates
   covariates <- str_c(covariates, collapse = " + ")
   results <- data.frame()
@@ -167,7 +207,7 @@ run_model_outcome <- function(outcome, models, data=merged_oz, covariates=cov, p
   if ("did" %in% models) {
     fit_did <- pooled_ols(outcome, data, covariates)
     results <- bind_rows(results, generate_model_output(fit_did, outcome,
-                                                        "treatment:post", "did", data, print=print)) 
+                                                        "post_treatment", "did", data, print=print)) 
   }
   if ("time_trend" %in% models) {
     fit_trend_lm <- trend_model(outcome, data, covariates)
@@ -182,53 +222,49 @@ run_model_outcome <- function(outcome, models, data=merged_oz, covariates=cov, p
   return(results)
 }
 
-models <- c("did", "twfe_cov", "twfe", "event")
-# run_model_outcome("C000rac_log", models,  print=T)
+models <- c("did")
+run_model_outcome("C000rac_log", models,  print=T)
 ```
 
 ```{r}
-results <- map_dfr(c(log_outcomes), ~run_model_outcome(., models=models, 
-                                                       data = merged_oz, print=FALSE))
+results <- map_dfr(c(log_outcomes), ~run_model_outcome(., models=models, print=FALSE))
 results
 
 # save to output
 results %>%
-  write_csv(str_glue("../2_output/results_log_{date}.csv"), na="")
+  write_csv(str_glue("../2_output/results_log_ps_{date}.csv"), na="")
 ```
 
 ```{r}
-results <- map_dfr(c(pct_outcomes), ~run_model_outcome(., models=c("twfe", "twfe_cov",
-                                                                   "did"), 
-                                                       data = merged_oz %>% 
+results <- map_dfr(c(pct_outcomes), ~run_model_outcome(., models=c("did"), 
+                                                       data = m.data_panel %>% 
                                                          filter(year > 2014), print=FALSE))
 results
 
 # save to output
 results %>%
-  write_csv(str_glue("../2_output/results_pct_{date}.csv"), na="")
+  write_csv(str_glue("../2_output/results_pct_ps_{date}.csv"), na="")
 ```
-
 ```{r}
 # placebo test
-placebo_df <- merged_oz %>% 
+placebo_df <- m.data_panel %>% 
   filter(post == 0) %>% 
   select(-c(post, post_treatment)) %>%
   mutate(post = if_else(year >= 2016, 1, 0),
          post_treatment = post*treatment)
 
-placebo_results <- map_dfr(c(log_outcomes), ~run_model_outcome(., models=c("did", "twfe", "twfe_cov"), 
+placebo_results <- map_dfr(c(log_outcomes), ~run_model_outcome(., models=c("did"), 
                                                                data = placebo_df,
                                                     print=FALSE))
 placebo_results
 
 # save to output
 placebo_results %>% 
-  write_csv(str_glue("../2_output/placebo_log_{date}.csv"), na="")
+  write_csv(str_glue("../2_output/placebo_log_ps_{date}.csv"), na="")
 ```
-
 ```{r}
-placebo_results <- map_dfr(c(pct_outcomes), ~run_model_outcome(., 
-                                                               models=c("did", "twfe", "twfe_cov"), 
+# placebo test
+placebo_results <- map_dfr(c(pct_outcomes), ~run_model_outcome(., models=c("did"), 
                                                                data = placebo_df %>% 
                                                                  filter(year > 2014),
                                                     print=FALSE))
@@ -236,6 +272,14 @@ placebo_results
 
 # save to output
 placebo_results %>% 
-  write_csv(str_glue("../2_output/placebo_pct_{date}.csv"), na="")
+  write_csv(str_glue("../2_output/placebo_pct_ps_{date}.csv"), na="")
 ```
+
+
+
+
+
+
+
+
 
