@@ -92,7 +92,8 @@ merged_oz <- merged_oz %>%
 merged_oz %>% 
   saveRDS("../2_output/analysis_file.RDS")
 
-merged_oz
+merged_oz %>% 
+  write_csv("../2_output/analysis_file.csv", na = "")
 ```
 
 
