@@ -12,7 +12,7 @@ library(tidycensus)
 library(lehdr)
 library(sf)
 library(readxl)
-data_dir <- "/Users/adelaide/Documents/Grad School/NYU/Fall 2022/Research Methods/Project"
+data_dir <- "/Users/adelaide/Documents/GitHub/RMproject"
 ```
 
 ```{r}
@@ -27,7 +27,7 @@ download.file(shell_2017, str_glue("{shelldir}/{shellname}"))
 ```
 ```{r}
 #Load
-acs_covlist <- read_xlsx(path(data_dir, "codebook.xlsx")) %>% 
+acs_covlist <- read_xlsx(path("../0_data", "codebook.xlsx")) %>% 
   filter(Include ==1)
 
 acs_covs <- acs_covlist$`ACS Code`
@@ -52,14 +52,14 @@ acs
 
 ```{r}
 # load oz csv data
-oz_tracts <- read_csv(path(data_dir, "Opportunity_Zone_Eligible_Census_Tracts.csv")) %>% 
+oz_tracts <- read_csv(path("../0_data", "Opportunity_Zone_Eligible_Census_Tracts.csv")) %>% 
   mutate(GEOID = as.numeric(GEOID)) %>% 
   mutate(GEOID_CHANGE = as.numeric(GEOID_CHANGE))
 
 # identify tracts that are ozs
 acs_oz_tracts <- acs %>% 
     left_join(oz_tracts %>% 
-    select(GEOID, GEOID_CHANGE, DESIGNATED, TRACT_TYPE, LIC, CONTIGUOUS), by = c("GEOID" = "GEOID")) %>% 
+    select(GEOID, STATE, COUNTY, GEOID_CHANGE, DESIGNATED, TRACT_TYPE, LIC, CONTIGUOUS), by = c("GEOID" = "GEOID")) %>% 
     filter(!is.na(DESIGNATED))
 
 acs_oz_tracts
@@ -84,7 +84,7 @@ acs_oz_tracts_all <- bind_rows(acs_oz_tracts, acs_changeGEOID2010) %>%
   spread(key=variable, value=estimate)
 
 acs_oz_tracts_all %>% 
-  write_csv("/Users/adelaide/Documents/Grad School/NYU/Fall 2022/Research Methods/Project/acs_oz_data.csv", na = "")
+  write_csv("../2_output/acs_oz_data.csv", na = "")
 ```
 
 ```{r}
