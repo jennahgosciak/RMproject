@@ -53,11 +53,21 @@ cov <- c("log_median_household_income", "total_housing", "percent_white", "perce
 # Plots
 
 ```{r, fig.height = 15, fig.width = 5}
-generate_parallel_trends_plot <- function(df, type, n = 5) {
+generate_parallel_trends_plot <- function(df, type, outcome_type) {
   if (type == "log") {
-    outcomes_list <- log_outcomes[c(1:n)]
+    outcomes_list <- log_outcomes
   } else {
-    outcomes_list <- pct_outcomes[c(1:n)]
+    outcomes_list <- pct_outcomes
+  }
+  
+  if (outcome_type == "rac") {
+    outcomes_list <- outcomes_list[str_detect(outcomes_list, "rac_")]
+  } else if (outcome_type == "wac") {
+    outcomes_list <- outcomes_list[str_detect(outcomes_list, "wac")]
+  } else {
+    outcomes_list <- outcomes_list[str_detect(outcomes_list, "same") |
+                                     str_detect(outcomes_list, "elig") |
+                                     str_detect(outcomes_list, "desig")]
   }
   df_pivot <- df %>% 
       pivot_longer(outcomes_list, names_to = "outcomes", values_to = "employment") %>% 
@@ -73,10 +83,17 @@ generate_parallel_trends_plot <- function(df, type, n = 5) {
       #            method=lm) +
       theme_classic() +
       labs(color = "Designation") +
-      facet_wrap(~outcomes, ncol=1)
+      facet_wrap(~outcomes, ncol=1, scales = "free")
+  
+  ggsave(paste0("../2_output/", outcome_type, "_", type, "_parallel_trends.png"),
+         height = 15)
 }
 
-generate_parallel_trends_plot(merged_oz, "pct")
+generate_parallel_trends_plot(merged_oz, "pct", "rac")
+generate_parallel_trends_plot(merged_oz, "pct", "wac")
+generate_parallel_trends_plot(merged_oz, "pct", "od")
+# generate_parallel_trends_plot(merged_oz, "log", "rac")
+# generate_parallel_trends_plot(merged_oz, "log", "wac")
 ```
 
 ```{r, fig.height = 15, fig.width = 5}
