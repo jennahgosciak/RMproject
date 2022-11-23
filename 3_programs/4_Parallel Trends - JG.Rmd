@@ -17,7 +17,7 @@ library(plm)
 library(lmtest)
 library(sandwich)
 library(wfe)
-data_dir <- "C:/Users/Jennah/Desktop/Code/RMproject"
+data_dir <- "/Users/adelaide/Documents/GitHub/RMproject"
 
 date <- Sys.Date() %>% 
   str_replace_all("-", "_")
@@ -93,14 +93,15 @@ generate_parallel_trends_plot <- function(df, type, outcome_type) {
          height = 15)
 }
 
-generate_parallel_trends_plot(merged_oz, "pct")
-generate_parallel_trends_plot(topcommutezones, "pct")
-
 generate_parallel_trends_plot(merged_oz, "pct", "rac")
 generate_parallel_trends_plot(merged_oz, "pct", "wac")
 generate_parallel_trends_plot(merged_oz, "pct", "od")
 # generate_parallel_trends_plot(merged_oz, "log", "rac")
 # generate_parallel_trends_plot(merged_oz, "log", "wac")
+
+generate_parallel_trends_plot(topcommutezones, "pct", "rac")
+generate_parallel_trends_plot(topcommutezones, "pct", "wac")
+generate_parallel_trends_plot(topcommutezones, "pct", "od")
 ```
 
 ```{r, fig.height = 15, fig.width = 5}
