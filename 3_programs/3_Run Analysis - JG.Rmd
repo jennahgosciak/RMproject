@@ -17,7 +17,7 @@ library(plm)
 library(lmtest)
 library(sandwich)
 library(wfe)
-data_dir <- "C:/Users/Jennah/Desktop/Code/RMproject"
+data_dir <- "/Users/adelaide/Documents/GitHub/RMproject"
 
 date <- Sys.Date() %>% 
   str_replace_all("-", "_")
@@ -50,6 +50,12 @@ merged_oz
 merged_oz %>% 
   group_by(year, DESIGNATED) %>% 
   summarize(n = n())
+
+#only top commuting areas
+
+topcommutezones <- merged_oz %>% 
+  filter(`Our CBSA`==1)
+
 ```
 
 
@@ -187,6 +193,8 @@ models <- c("did", "twfe_cov", "twfe", "event")
 ```
 
 ```{r}
+#results log whole sample
+
 results <- map_dfr(c(log_outcomes), ~run_model_outcome(., models=models, 
                                                        data = merged_oz, print=FALSE))
 results
@@ -197,6 +205,7 @@ results %>%
 ```
 
 ```{r}
+#results pct whole sample
 results <- map_dfr(c(pct_outcomes), ~run_model_outcome(., models=c("twfe", "twfe_cov",
                                                                    "did"), 
                                                        data = merged_oz %>% 
@@ -209,7 +218,20 @@ results %>%
 ```
 
 ```{r}
-# placebo test
+#results top commuting areas
+results <- map_dfr(c(pct_outcomes), ~run_model_outcome(., models=c("twfe", "twfe_cov",
+                                                                   "did"), 
+                                                       data = topcommutezones %>% 
+                                                         filter(year > 2014), print=FALSE))
+results
+
+# save to output
+results %>%
+  write_csv(str_glue("../2_output/results_pct_commute_{date}.csv"), na="")
+```
+
+```{r}
+# placebo test whole sample
 placebo_df <- merged_oz %>% 
   filter(post == 0) %>% 
   select(-c(post, post_treatment)) %>%
@@ -224,9 +246,11 @@ placebo_results
 # save to output
 placebo_results %>% 
   write_csv(str_glue("../2_output/placebo_log_{date}.csv"), na="")
+
 ```
 
 ```{r}
+# placebo test whole sample pct 
 placebo_results <- map_dfr(c(pct_outcomes), ~run_model_outcome(., 
                                                                models=c("did", "twfe", "twfe_cov"), 
                                                                data = placebo_df %>% 
@@ -237,5 +261,22 @@ placebo_results
 # save to output
 placebo_results %>% 
   write_csv(str_glue("../2_output/placebo_pct_{date}.csv"), na="")
+
+# placebo test commuting sample pct
+placebo_df_commute <- topcommutezones %>% 
+  filter(post == 0) %>% 
+  select(-c(post, post_treatment)) %>%
+  mutate(post = if_else(year >= 2016, 1, 0),
+         post_treatment = post*treatment)
+
+placebo_results <- map_dfr(c(pct_outcomes), ~run_model_outcome(., models=c("did", "twfe", "twfe_cov"), 
+                                                               data = placebo_df_commute,
+                                                    print=FALSE))
+placebo_results
+
+# save to output
+placebo_results %>% 
+  write_csv(str_glue("../2_output/placebo_pct_commute_{date}.csv"), na="")
+
 ```
 
