@@ -53,11 +53,16 @@ cov <- c("log_median_household_income", "total_housing", "percent_white", "perce
 topcommutezones <- merged_oz %>% 
   filter(`Our CBSA`==1)
 ```
+```{r}
+matched_data <- readRDS("../2_output/matched_analysis_file.RDS")
+matched_data
+```
+
 
 # Plots
 
-```{r, fig.height = 15, fig.width = 5}
-generate_parallel_trends_plot <- function(df, type, outcome_type) {
+```{r}
+generate_parallel_trends_plot <- function(df, type, outcome_type, df_type="all") {
   if (type == "log") {
     outcomes_list <- log_outcomes
   } else {
@@ -80,7 +85,7 @@ generate_parallel_trends_plot <- function(df, type, outcome_type) {
       mutate(employment = if_else(employment == Inf, 0, employment)) %>% 
       summarize(employment = mean(employment, na.rm = T))
   
-  df_pivot %>% 
+  plot <- df_pivot %>% 
       ggplot(aes(x = year, y = employment)) +
       geom_line(aes(color=if_else(treatment == 1, "Selected", "Eligible"))) +
       #geom_smooth(aes(color=if_else(treatment == 1, "Selected", "Eligible")),
@@ -89,19 +94,27 @@ generate_parallel_trends_plot <- function(df, type, outcome_type) {
       labs(color = "Designation") +
       facet_wrap(~outcomes, ncol=1, scales = "free")
   
-  ggsave(paste0("../2_output/", outcome_type, "_", type, "_parallel_trends.png"),
+  plot %>%
+    print()
+  
+  ggsave(paste0("../2_output/", outcome_type, "_", type, "_",
+  df_type, "_parallel_trends.png"),
          height = 15)
 }
-
+```
+```{r, fig.height = 15, fig.width = 5}
+# generate plots
 generate_parallel_trends_plot(merged_oz, "pct", "rac")
 generate_parallel_trends_plot(merged_oz, "pct", "wac")
 generate_parallel_trends_plot(merged_oz, "pct", "od")
-# generate_parallel_trends_plot(merged_oz, "log", "rac")
-# generate_parallel_trends_plot(merged_oz, "log", "wac")
 
-generate_parallel_trends_plot(topcommutezones, "pct", "rac")
-generate_parallel_trends_plot(topcommutezones, "pct", "wac")
-generate_parallel_trends_plot(topcommutezones, "pct", "od")
+generate_parallel_trends_plot(topcommutezones, "pct", "rac", df_type="commute")
+generate_parallel_trends_plot(topcommutezones, "pct", "wac", df_type="commute")
+generate_parallel_trends_plot(topcommutezones, "pct", "od", df_type="commute")
+
+generate_parallel_trends_plot(matched_data, "pct", "rac", df_type="matched")
+generate_parallel_trends_plot(matched_data, "pct", "wac", df_type="matched")
+generate_parallel_trends_plot(matched_data, "pct", "od", df_type="matched")
 ```
 
 ```{r, fig.height = 15, fig.width = 5}

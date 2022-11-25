@@ -17,7 +17,7 @@ data_dir <- "/Users/adelaide/Documents/GitHub/RMproject"
 
 ```{r}
 # load acs
-acs_oz <- read_csv(str_glue("../2_output/acs_oz_data.csv")) %>% 
+acs_oz <- read_csv(str_glue("../0_data/acs_oz_data.csv")) %>% 
   rename(acs_year = year)
 acs_oz
 ```
@@ -62,7 +62,8 @@ merged_oz <- rac_clean %>%
 merged_oz %>% 
   group_by(year, post, post_treat, treatment) %>% 
   summarize(n = n())
-
+```
+```{r}
 merged_oz <- merged_oz %>% 
   mutate(CRothrac = rowSums(select(., c(CR03rac, CR04rac, CR05rac, CR07rac)), na.rm = T),
          CRothwac = rowSums(select(., c(CR03wac, CR04wac, CR05wac, CR07wac)), na.rm = T)) %>% 
@@ -90,11 +91,16 @@ merged_oz <- merged_oz %>%
   filter(!is.na(GEOID) & !is.na(year)) %>% 
   filter((CONTIGUOUS == FALSE & DESIGNATED == FALSE) | DESIGNATED == TRUE) %>%
   mutate(C000rac_rate = if_else(population > 0, C000rac / population, 0))
-  
+
+# creating state and county code vars
+# making GEOID a string with leading 0s
+merged_oz <- merged_oz %>% 
+  mutate(GEOID = str_pad(GEOID, 11, pad = "0"),
+         STATE = substr(GEOID, 1, 2),
+         COUNTY = substr(GEOID, 3, 5))
 ```
 
 ```{r}
-
 #Load MSA
 MSA_2018 <-  read_excel("../0_data/list1_Sep_2018.xlsx")
 
@@ -104,21 +110,16 @@ MSA_2018 <- MSA_2018 %>%
 
 merged_oz <-  merged_oz %>% 
   left_join(MSA_2018, by = c("STATE", "COUNTY"))
-
-
 ```
 
 ```{r}
-
 #Load Urban
 urban <-  read_excel("../0_data/urbaninstitute_tractlevelozanalysis_update01142021.xlsx") %>% 
   select( geoid, dec_score, SE_Flag, vacancyrate, pctunder18, pctover64) %>% 
-  mutate(GEOID = as.numeric(geoid)) 
+  rename(GEOID = geoid)
 
 merged_oz <-  merged_oz %>% 
   left_join(urban, by = c("GEOID"))
-
-
 ```
 
 ```{r}

@@ -53,13 +53,21 @@ merged_oz
 merged_oz %>% 
   group_by(year, DESIGNATED) %>% 
   summarize(n = n())
+
+merged_oz_wide <- merged_oz %>% 
+  filter(year < 2018 & year > 2014) %>% 
+  pivot_wider(id_cols = c("GEOID"), names_from = c("year"), values_from = pct_outcomes) %>% 
+  left_join(merged_oz %>% 
+              filter(year == 2014) %>% 
+              select(GEOID, cov, treatment), by = "GEOID")
+merged_oz_wide
 ```
 
 ```{r}
-covariates <- str_c(cov, collapse = " + ")
+pct_outcomes_yr <- str_c(pct_outcomes, c(2015:2017), sep = "_")
+covariates <- str_c(c(cov, pct_outcomes_yr), collapse = " + ")
 form <- formula(paste0("treatment ~", covariates))
-m.out0 <- matchit(form, data = merged_oz %>% 
-                  filter(year == 2014),
+m.out0 <- matchit(form, data = merged_oz_wide,
                  method = NULL, distance = "glm")
 m.out0
 
@@ -67,9 +75,7 @@ summary(m.out0)
 ```
 ```{r}
 # matching
-m.out1 <- matchit(form, data = merged_oz %>% 
-                    # we should only match on one year!
-                  filter(year == 2014),
+m.out1 <- matchit(form, data = merged_oz_wide,
                   method = "nearest", distance = "glm")
 ```
 
@@ -82,7 +88,7 @@ plot(m.out1, type = "jitter", interactive = FALSE)
 
 ```{r}
 plot(m.out1, type = "density", interactive = FALSE,
-     which.xs = cov)
+     which.xs = c(cov, pct_outcomes_yr))
 ```
 ```{r}
 plot(summary(m.out1))
@@ -95,6 +101,8 @@ m.data_panel <- inner_join(merged_oz,
                             select(GEOID, subclass, weights, distance),
                           using = "GEOID")
 head(m.data_panel)
+m.data_panel %>% 
+  saveRDS("../2_output/matched_analysis_file.RDS")
 ```
 ```{r}
 # functions for each model
