@@ -1,7 +1,7 @@
 # Doctoral Research Methods
-## Analysise of Opportunity Zones using LODES Data
+## Opportunity Zones and Employment
 
-Folder structure (something we can definitely change):
+Folder structure:
 - 0_data/
 - 1_input/
 - 2_output/
