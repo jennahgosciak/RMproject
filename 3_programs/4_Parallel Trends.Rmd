@@ -120,13 +120,13 @@ generate_parallel_trends_plot(matched_data, "pct", "od", df_type="matched")
 ```{r, fig.height = 15, fig.width = 5}
 # same as above, but dropping small tracts
 generate_parallel_trends_plot(merged_oz %>% 
-                                filter(C000rac > 1000), "pct")
+                                filter(C000rac > 1000), "pct", "large_tracts")
 ```
 
 ```{r, fig.height = 15, fig.width = 5}
 # same as above, but dropping small tracts
 generate_parallel_trends_plot(merged_oz %>% 
-                                filter(C000wac > 50), "pct")
+                                filter(C000wac > 50), "pct", "large_tracts")
 ```
 
 ```{r}
@@ -268,6 +268,10 @@ balance_tests
 balance_tests_commuting <- map_dfr(c(cov), ~run_balance_tests(., topcommutezones %>%
                                                       filter(year == 2017)))
 balance_tests_commuting
+
+balance_tests_matched <- map_dfr(c(cov), ~run_balance_tests(., matched_data %>%
+                                                      filter(year == 2017)))
+balance_tests_matched
 ```
 
 
