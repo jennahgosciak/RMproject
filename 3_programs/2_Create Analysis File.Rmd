@@ -54,13 +54,13 @@ merged_oz <- rac_clean %>%
     left_join(od_clean, by = c("year", "GEOID")) %>% 
   left_join(acs_oz, ., by = "GEOID") %>% 
   mutate(treatment = as.numeric(DESIGNATED),
-         post = if_else(year %in% c(2018, 2019), 1, 0),
+         # this should be if the year is 2019
+         post = if_else(year == 2019, 1, 0),
          year_fact = factor(year, levels = c(2014:2019)),
-         geoid_fact = factor(GEOID),
-         post_treat = if_else(year %in% c(2018, 2019) & DESIGNATED == TRUE, 1, 0))
+         geoid_fact = factor(GEOID))
 
 merged_oz %>% 
-  group_by(year, post, post_treat, treatment) %>% 
+  group_by(year, post, treatment) %>% 
   summarize(n = n())
 ```
 ```{r}
