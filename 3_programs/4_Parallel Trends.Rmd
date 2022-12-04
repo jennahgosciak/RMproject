@@ -46,7 +46,7 @@ merged_oz %>%
   summarize(n = n())
 
 
-cov <- c("log_median_household_income", "total_housing", "percent_white", "percent_postsec", "percent_rent", "percent_hc_covered", "percent_poverty", "percent_suplemental_income", "percent_employed")
+cov <- c("log_median_household_income", "total_housing", "percent_white", "percent_postsec", "percent_rent", "percent_hc_covered", "percent_poverty", "percent_suplemental_income", "percent_employed", "dec_score", "SE_Flag", "vacancyrate", "pctunder18", "pctover64")
 
 #only top commuting areas
 

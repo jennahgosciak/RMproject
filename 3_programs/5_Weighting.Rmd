@@ -36,7 +36,7 @@ outcomes <- c("C000rac",
 
 log_outcomes <- str_c(outcomes, "_log")
 pct_outcomes <- str_c(outcomes, "_pctchange")
-cov <- c("log_median_household_income", "total_housing", "percent_white", "percent_postsec", "percent_rent", "percent_hc_covered", "percent_poverty", "percent_suplemental_income", "percent_employed")
+cov <- c("log_median_household_income", "total_housing", "percent_white", "percent_postsec", "percent_rent", "percent_hc_covered", "percent_poverty", "percent_suplemental_income", "percent_employed", "dec_score", "SE_Flag", "vacancyrate", "pctunder18", "pctover64")
 ```
 
 ```{r}
@@ -64,10 +64,10 @@ merged_oz_wide
 ```
 
 ```{r}
-pct_outcomes_yr <- str_c(pct_outcomes, c(2015:2017), sep = "_")
-covariates <- str_c(c(cov, pct_outcomes_yr), collapse = " + ")
+covariates <- str_c(cov, collapse = " + ")
 form <- formula(paste0("treatment ~", covariates))
-m.out0 <- matchit(form, data = merged_oz_wide,
+m.out0 <- matchit(form, data = merged_oz %>% 
+                    filter(year == 2017 & `Our CBSA`==1),
                  method = NULL, distance = "glm")
 m.out0
 
@@ -75,7 +75,8 @@ summary(m.out0)
 ```
 ```{r}
 # matching
-m.out1 <- matchit(form, data = merged_oz_wide,
+m.out1 <- matchit(form, data = merged_oz %>% 
+                    filter(year == 2017 & `Our CBSA`==1),
                   method = "nearest", distance = "glm")
 ```
 
@@ -88,7 +89,7 @@ plot(m.out1, type = "jitter", interactive = FALSE)
 
 ```{r}
 plot(m.out1, type = "density", interactive = FALSE,
-     which.xs = c(cov, pct_outcomes_yr))
+     which.xs = c(cov))
 ```
 ```{r}
 plot(summary(m.out1))
@@ -231,7 +232,7 @@ run_model_outcome <- function(outcome, models, data=m.data_panel,
 }
 
 models <- c("did")
-run_model_outcome("C000rac_log", models,  print=T)
+#run_model_outcome("C000rac_log", models,  print=T)
 ```
 
 ```{r}
@@ -246,6 +247,8 @@ results %>%
 ```{r}
 results <- map_dfr(c(pct_outcomes), ~run_model_outcome(., models=c("did"), 
                                                        data = m.data_panel %>% 
+                                                         mutate(post = if_else(year > 2018, 1, 0),
+                                                                post_treatment = post*treatment) %>% 
                                                          filter(year > 2014), print=FALSE))
 results
 

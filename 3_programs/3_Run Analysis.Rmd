@@ -34,7 +34,7 @@ outcomes <- c("C000rac",
 
 log_outcomes <- str_c(outcomes, "_log")
 pct_outcomes <- str_c(outcomes, "_pctchange")
-cov <- c("log_median_household_income", "total_housing", "percent_white", "percent_postsec", "percent_rent", "percent_hc_covered", "percent_poverty", "percent_suplemental_income", "percent_employed")
+cov <- c("log_median_household_income", "total_housing", "percent_white", "percent_postsec", "percent_rent", "percent_hc_covered", "percent_poverty", "percent_suplemental_income", "percent_employed", "dec_score", "SE_Flag", "vacancyrate", "pctunder18", "pctover64")
 ```
 
 ```{r}
@@ -52,10 +52,11 @@ merged_oz %>%
   summarize(n = n())
 
 #only top commuting areas
-
 topcommutezones <- merged_oz %>% 
   filter(`Our CBSA`==1)
 
+matched_data <- readRDS("../2_output/matched_analysis_file.RDS")
+matched_data
 ```
 
 
@@ -279,4 +280,20 @@ placebo_results %>%
   write_csv(str_glue("../2_output/placebo_pct_commute_{date}.csv"), na="")
 
 ```
+```{r}
+placebo_df <- matched_data %>% 
+  filter(post == 0 & `Our CBSA` == 1) %>% 
+  select(-c(post, post_treatment)) %>%
+  mutate(post = if_else(year >= 2016, 1, 0),
+         post_treatment = post*treatment)
+
+# placebo test whole sample pct 
+placebo_results <- map_dfr(c(pct_outcomes), ~run_model_outcome(., 
+                                                               models=c("did"), 
+                                                               data = placebo_df %>% 
+                                                                 filter(year > 2014),
+                                                    print=FALSE))
+placebo_results
+```
+
 
