@@ -313,6 +313,7 @@ coef_vals[,] %>%
   select(estimate = Estimate, estimate_ci_high, estimate_ci_low, year, outcome, covariates)
 }
 
+# generate event study plots using matched data
 event_df <- bind_rows(map_dfr(pct_outcomes, ~generate_event_df(., matched_data, covariates = F)),
                       map_dfr(pct_outcomes, ~generate_event_df(., matched_data, covariates = T)))
 
@@ -320,7 +321,7 @@ event_df
 ```
 
 ```{r, fig.height = 15, fig.width = 5}
-generate_event_plot <- function(df, type) {
+generate_event_plot <- function(df, type, data_type) {
   df %>% 
     filter(str_detect(outcome, type)) %>% 
     mutate(type = if_else(covariates == TRUE, "cov", "no cov")) %>% 
@@ -332,13 +333,13 @@ generate_event_plot <- function(df, type) {
     facet_wrap(~outcome, ncol=1, scales = "free") +
     labs(y = "Pre-trend test coefficients (base year 2017)")
 
-  ggsave(paste0("../2_output/", type, "event_study.png"),
+  ggsave(paste0("../2_output/", data_type, "_", type, "event_study.png"),
          height = 15)
 }
 
-generate_event_plot(event_df, "rac_")
-generate_event_plot(event_df, "wac_")
-generate_event_plot(event_df, "S000_")
+generate_event_plot(event_df, "rac_", "matched")
+generate_event_plot(event_df, "wac_", "matched")
+generate_event_plot(event_df, "S000_", "matched")
 ```
 
 
