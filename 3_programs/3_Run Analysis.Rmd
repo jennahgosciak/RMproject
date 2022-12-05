@@ -152,7 +152,8 @@ generate_model_output <- function(fit_model, outcome, treat_var, model_type, dat
   pval <- round(coef_vals[coef_pos, 4], 4)
   coef_ast <- case_when(pval < 0.01 ~ paste0(coef, "***"),
                         pval < 0.05 ~ paste0(coef, "**"),
-                        pval < 0.1 ~ paste0(coef, "*"))
+                        pval < 0.1 ~ paste0(coef, "*"),
+                        TRUE ~ paste0(coef))
   
   return(data.frame("outcome" = outcome,
                "treatment_post" = sum_fit_plm$coefficients[coef_pos, 1],
@@ -160,6 +161,7 @@ generate_model_output <- function(fit_model, outcome, treat_var, model_type, dat
                "se" = se,
                "pval" = pval,
                "rsq" = round(sum_fit_plm$r.squared[[1]], 3),
+               "n" = nobs(fit_model),
                "model_type" = model_type))
 }
 
@@ -196,7 +198,8 @@ run_model_outcome <- function(outcome, models, data=merged_oz, covariates=cov, p
 }
 
 models <- c("did", "twfe_cov", "twfe", "event")
-# run_model_outcome("C000rac_log", models,  print=T)
+# run_model_outcome("C000rac_pctchange", models,  data = matched_data %>% 
+#                     filter(year > 2014), print=T)
 ```
 
 ```{r}
@@ -246,6 +249,21 @@ results
 # save to output
 results %>%
   write_csv(str_glue("../2_output/results_pct_matched_{date}.csv"), na="")
+
+results
+
+format_results <- function(df) {
+  df %>% 
+    mutate(coef_full = paste0(coef_asterisk, "\n(", se, ")")) %>% 
+    select(outcome, coef_full, model_type) %>% 
+    pivot_wider(id_cols = "outcome", names_from = "model_type", values_from = "coef_full") %>% 
+    select(outcome, did, twfe, twfe_cov)
+  
+}
+
+results %>% 
+  format_results() %>% 
+  write_csv(str_glue("../2_output/results_pct_matched_form_{date}.csv"), na="")
 ```
 
 
@@ -316,6 +334,10 @@ placebo_results_matched
 # save to output
 placebo_results_matched %>% 
   write_csv(str_glue("../2_output/placebo_pct_matched_{date}.csv"), na="")
+
+placebo_results_matched %>% 
+  format_results() %>% 
+  write_csv(str_glue("../2_output/placebo_pct_matched_form_{date}.csv"), na="")
 ```
 
 

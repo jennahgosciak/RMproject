@@ -91,7 +91,9 @@ generate_parallel_trends_plot <- function(df, type, outcome_type, df_type="all")
       #geom_smooth(aes(color=if_else(treatment == 1, "Selected", "Eligible")),
       #            method=lm) +
       theme_classic() +
-      labs(color = "Designation") +
+      labs(color = "Designation",
+           y = "Growth (percentage points)",
+           x = "Year") +
       facet_wrap(~outcomes, ncol=1, scales = "free")
   
   plot %>%
@@ -273,6 +275,72 @@ balance_tests_matched <- map_dfr(c(cov), ~run_balance_tests(., matched_data %>%
                                                       filter(year == 2017)))
 balance_tests_matched
 ```
+
+```{r}
+# event study plots
+event_model <- function(outcome, data, covariates) {
+  form <- paste0(outcome, " ~ treatment:year_fact2015 + ",
+                    "treatment:year_fact2016 + treatment:year_fact2018 + treatment:year_fact2019 + ",
+                    "year_fact2015 + year_fact2016 + year_fact2018 + year_fact2019")
+  
+  if (covariates==TRUE) {
+    form <- paste0(form, "+", str_c(cov, collapse="+"))
+  }
+  
+  mod <- plm(form, 
+               data = data, 
+               index = c("GEOID"), 
+               model = "within", 
+               effect = "individual")
+  
+  return(mod)
+}
+
+generate_event_df <- function(outcome, data, covariates = FALSE) {
+  mod <- event_model(outcome, data, covariates)
+
+coef_vals <- coeftest(mod, vcovHC(mod, type = 'HC3', cluster = 'group'))
+coef_vals
+
+coef_vals[,] %>% 
+  as_tibble(rownames="outcomes") %>% 
+  mutate(estimate_ci_high = Estimate + (1.96*`Std. Error`),
+         estimate_ci_low = Estimate - (1.96*`Std. Error`)) %>% 
+  filter(str_detect(outcomes, "treatment")) %>% 
+  mutate(year = as.numeric(str_replace_all(outcomes, "treatment:year_fact", "")),
+         outcome = outcome,
+         covariates = covariates) %>% 
+  select(estimate = Estimate, estimate_ci_high, estimate_ci_low, year, outcome, covariates)
+}
+
+event_df <- bind_rows(map_dfr(pct_outcomes, ~generate_event_df(., matched_data, covariates = F)),
+                      map_dfr(pct_outcomes, ~generate_event_df(., matched_data, covariates = T)))
+
+event_df
+```
+
+```{r, fig.height = 15, fig.width = 5}
+generate_event_plot <- function(df, type) {
+  df %>% 
+    filter(str_detect(outcome, type)) %>% 
+    mutate(type = if_else(covariates == TRUE, "cov", "no cov")) %>% 
+    ggplot() +
+    geom_errorbar(aes(year, ymin = estimate_ci_low, ymax = estimate_ci_high, color = type),
+                  position = "dodge") +
+    geom_hline(aes(yintercept = 0)) +
+    theme_classic() +
+    facet_wrap(~outcome, ncol=1, scales = "free") +
+    labs(y = "Pre-trend test coefficients (base year 2017)")
+
+  ggsave(paste0("../2_output/", type, "event_study.png"),
+         height = 15)
+}
+
+generate_event_plot(event_df, "rac_")
+generate_event_plot(event_df, "wac_")
+generate_event_plot(event_df, "S000_")
+```
+
 
 
 
