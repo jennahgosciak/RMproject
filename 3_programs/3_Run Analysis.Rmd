@@ -57,6 +57,12 @@ topcommutezones <- merged_oz %>%
 
 matched_data <- readRDS("../2_output/matched_analysis_file.RDS")
 matched_data
+
+matched_data %>% 
+  select(`Our CBSA`) %>% 
+  unique() %>% 
+  magrittr::equals(1) %>% 
+  stopifnot()
 ```
 
 
@@ -195,14 +201,13 @@ models <- c("did", "twfe_cov", "twfe", "event")
 
 ```{r}
 #results log whole sample
-
-results <- map_dfr(c(log_outcomes), ~run_model_outcome(., models=models, 
-                                                       data = merged_oz, print=FALSE))
-results
-
-# save to output
-results %>%
-  write_csv(str_glue("../2_output/results_log_{date}.csv"), na="")
+# results <- map_dfr(c(log_outcomes), ~run_model_outcome(., models=models, 
+#                                                        data = merged_oz, print=FALSE))
+# results
+# 
+# # save to output
+# results %>%
+#   write_csv(str_glue("../2_output/results_log_{date}.csv"), na="")
 ```
 
 ```{r}
@@ -230,6 +235,19 @@ results
 results %>%
   write_csv(str_glue("../2_output/results_pct_commute_{date}.csv"), na="")
 ```
+```{r}
+#results matched data
+results <- map_dfr(c(pct_outcomes), ~run_model_outcome(., models=c("twfe", "twfe_cov",
+                                                                   "did"), 
+                                                       data = matched_data %>% 
+                                                         filter(year > 2014), print=FALSE))
+results
+
+# save to output
+results %>%
+  write_csv(str_glue("../2_output/results_pct_matched_{date}.csv"), na="")
+```
+
 
 ```{r}
 # placebo test whole sample
@@ -239,14 +257,14 @@ placebo_df <- merged_oz %>%
   mutate(post = if_else(year >= 2016, 1, 0),
          post_treatment = post*treatment)
 
-placebo_results <- map_dfr(c(log_outcomes), ~run_model_outcome(., models=c("did", "twfe", "twfe_cov"), 
-                                                               data = placebo_df,
-                                                    print=FALSE))
-placebo_results
-
-# save to output
-placebo_results %>% 
-  write_csv(str_glue("../2_output/placebo_log_{date}.csv"), na="")
+# placebo_results <- map_dfr(c(log_outcomes), ~run_model_outcome(., models=c("did", "twfe", "twfe_cov"), 
+#                                                                data = placebo_df,
+#                                                     print=FALSE))
+# placebo_results
+# 
+# # save to output
+# placebo_results %>% 
+#   write_csv(str_glue("../2_output/placebo_log_{date}.csv"), na="")
 
 ```
 
@@ -288,12 +306,16 @@ placebo_df <- matched_data %>%
          post_treatment = post*treatment)
 
 # placebo test whole sample pct 
-placebo_results <- map_dfr(c(pct_outcomes), ~run_model_outcome(., 
-                                                               models=c("did"), 
+placebo_results_matched <- map_dfr(c(pct_outcomes), ~run_model_outcome(., 
+                                                               models=c("did", "twfe", "twfe_cov"), 
                                                                data = placebo_df %>% 
                                                                  filter(year > 2014),
                                                     print=FALSE))
-placebo_results
+placebo_results_matched
+
+# save to output
+placebo_results_matched %>% 
+  write_csv(str_glue("../2_output/placebo_pct_matched_{date}.csv"), na="")
 ```
 
 

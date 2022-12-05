@@ -49,18 +49,6 @@ merged_oz <- readRDS("../2_output/analysis_file.RDS") %>%
            year_fact2019 = if_else(year == 2019, 1, 0)) %>% 
   mutate(across(cov, ~if_else(is.na(.), 0, .)))
 merged_oz
-
-merged_oz %>% 
-  group_by(year, DESIGNATED) %>% 
-  summarize(n = n())
-
-merged_oz_wide <- merged_oz %>% 
-  filter(year < 2018 & year > 2014) %>% 
-  pivot_wider(id_cols = c("GEOID"), names_from = c("year"), values_from = pct_outcomes) %>% 
-  left_join(merged_oz %>% 
-              filter(year == 2014) %>% 
-              select(GEOID, cov, treatment), by = "GEOID")
-merged_oz_wide
 ```
 
 ```{r}
@@ -258,20 +246,20 @@ results %>%
 ```
 ```{r}
 # placebo test
-placebo_df <- m.data_panel %>% 
-  filter(post == 0) %>% 
+placebo_df <- m.data_panel %>%
+  filter(post == 0) %>%
   select(-c(post, post_treatment)) %>%
   mutate(post = if_else(year >= 2016, 1, 0),
          post_treatment = post*treatment)
 
-placebo_results <- map_dfr(c(log_outcomes), ~run_model_outcome(., models=c("did"), 
-                                                               data = placebo_df,
-                                                    print=FALSE))
-placebo_results
-
-# save to output
-placebo_results %>% 
-  write_csv(str_glue("../2_output/placebo_log_ps_{date}.csv"), na="")
+# placebo_results <- map_dfr(c(log_outcomes), ~run_model_outcome(., models=c("did"), 
+#                                                                data = placebo_df,
+#                                                     print=FALSE))
+# placebo_results
+# 
+# # save to output
+# placebo_results %>% 
+#   write_csv(str_glue("../2_output/placebo_log_ps_{date}.csv"), na="")
 ```
 ```{r}
 # placebo test
