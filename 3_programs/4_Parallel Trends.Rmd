@@ -17,6 +17,9 @@ library(plm)
 library(lmtest)
 library(sandwich)
 library(wfe)
+library(did)
+library(wesanderson)
+
 data_dir <- "/Users/adelaide/Documents/GitHub/RMproject"
 
 date <- Sys.Date() %>% 
@@ -39,7 +42,13 @@ pct_outcomes <- str_c(outcomes, "_pctchange")
 ```
 
 ```{r}
-merged_oz <- readRDS("../2_output/analysis_file.RDS")
+merged_oz <- readRDS("../2_output/analysis_file.RDS")  %>% 
+  mutate(year_fact2014 = if_else(year == 2014, 1, 0),
+           year_fact2015 = if_else(year == 2015, 1, 0),
+           year_fact2016 = if_else(year == 2016, 1, 0),
+           year_fact2017 = if_else(year == 2017, 1, 0),
+           year_fact2018 = if_else(year == 2018, 1, 0),
+           year_fact2019 = if_else(year == 2019, 1, 0))
 
 merged_oz %>% 
   group_by(year, DESIGNATED) %>% 
@@ -53,16 +62,12 @@ cov <- c("log_median_household_income", "total_housing", "percent_white", "perce
 topcommutezones <- merged_oz %>% 
   filter(`Our CBSA`==1)
 ```
-```{r}
-matched_data <- readRDS("../2_output/matched_analysis_file.RDS")
-matched_data
-```
-
 
 # Plots
 
 ```{r}
-generate_parallel_trends_plot <- function(df, type, outcome_type, df_type="all") {
+generate_parallel_trends_plot <- function(df, type, outcome_type, df_type="commute",
+                                          filter_outcomes=NULL, filter_outcomes_lab=NULL) {
   if (type == "log") {
     outcomes_list <- log_outcomes
   } else {
@@ -78,12 +83,18 @@ generate_parallel_trends_plot <- function(df, type, outcome_type, df_type="all")
                                      str_detect(outcomes_list, "elig") |
                                      str_detect(outcomes_list, "desig")]
   }
+  
+  if (!is.null(filter_outcomes)) {
+    outcomes_list <- filter_outcomes
+  }
+  
   df_pivot <- df %>% 
-      pivot_longer(outcomes_list, names_to = "outcomes", values_to = "employment") %>% 
-      filter(year > 2014) %>% 
-      group_by(year, treatment, outcomes) %>% 
-      mutate(employment = if_else(employment == Inf, 0, employment)) %>% 
-      summarize(employment = mean(employment, na.rm = T))
+    rename_at(outcomes_list, ~names(outcomes_list)) %>% 
+    pivot_longer(names(outcomes_list), names_to = "outcomes", values_to = "employment") %>% 
+    filter(year > 2014) %>% 
+    group_by(year, treatment, outcomes) %>% 
+    mutate(employment = if_else(employment == Inf, 0, employment)) %>% 
+    summarize(employment = mean(employment, na.rm = T))
   
   plot <- df_pivot %>% 
       ggplot(aes(x = year, y = employment)) +
@@ -94,41 +105,59 @@ generate_parallel_trends_plot <- function(df, type, outcome_type, df_type="all")
       labs(color = "Designation",
            y = "Growth (percentage points)",
            x = "Year") +
-      facet_wrap(~outcomes, ncol=1, scales = "free")
+      facet_wrap(~outcomes, nrow=1, scales = "free") +
+    scale_color_manual(values= wes_palette("Moonrise2", n = 2))
   
   plot %>%
     print()
   
   ggsave(paste0("../2_output/", outcome_type, "_", type, "_",
-  df_type, "_parallel_trends.png"),
-         height = 15)
+  df_type, filter_outcomes_lab, "_parallel_trends.png"),
+         width = 11)
 }
 ```
-```{r, fig.height = 15, fig.width = 5}
-# generate plots
-generate_parallel_trends_plot(merged_oz, "pct", "rac")
-generate_parallel_trends_plot(merged_oz, "pct", "wac")
-generate_parallel_trends_plot(merged_oz, "pct", "od")
 
-generate_parallel_trends_plot(topcommutezones, "pct", "rac", df_type="commute")
-generate_parallel_trends_plot(topcommutezones, "pct", "wac", df_type="commute")
-generate_parallel_trends_plot(topcommutezones, "pct", "od", df_type="commute")
+```{r}
+vars_g1 <- c("Total employment\n(Residence Area Characteristics)" =
+               "C000rac_pctchange",
+             "Total employment\n(Workplace Area Characteristics)" = "C000wac_pctchange")
+generate_parallel_trends_plot(df = topcommutezones, "pct", "rac", "commute", vars_g1, "total")
 
-generate_parallel_trends_plot(matched_data, "pct", "rac", df_type="matched")
-generate_parallel_trends_plot(matched_data, "pct", "wac", df_type="matched")
-generate_parallel_trends_plot(matched_data, "pct", "od", df_type="matched")
-```
+vars_g2 <- c("Jobs with earnings\n$1250/month or less" =
+               "CE01rac_pctchange",
+             "Jobs with earnings\n$1251/month to $3333/month" = "CE02rac_pctchange",
+             "Jobs with earnings\ngreater than $3333/month" = "CE03rac_pctchange")
+generate_parallel_trends_plot(df = topcommutezones, "pct", "rac", "commute", vars_g2, "wage")
 
-```{r, fig.height = 15, fig.width = 5}
-# same as above, but dropping small tracts
-generate_parallel_trends_plot(merged_oz %>% 
-                                filter(C000rac > 1000), "pct", "large_tracts")
-```
+vars_g3 <- c("Jobs with earnings\n$1250/month or less" =
+               "CE01wac_pctchange",
+             "Jobs with earnings\n$1251/month to $3333/month" = "CE02wac_pctchange",
+             "Jobs with earnings\ngreater than $3333/month" = "CE03wac_pctchange")
+generate_parallel_trends_plot(df = topcommutezones, "pct", "wac", "commute", vars_g3, "wage")
 
-```{r, fig.height = 15, fig.width = 5}
-# same as above, but dropping small tracts
-generate_parallel_trends_plot(merged_oz %>% 
-                                filter(C000wac > 50), "pct", "large_tracts")
+vars_g4 <- c("Jobs for workers who are white" =
+               "CR01rac_pctchange",
+             "Jobs for workers who are Black" = "CR02rac_pctchange",
+             "Jobs for workers of other races" = "CRothrac_pctchange")
+generate_parallel_trends_plot(df = topcommutezones, "pct", "rac", "commute", vars_g4, "race")
+
+vars_g5 <- c("Jobs for workers who are white" =
+               "CR01wac_pctchange",
+             "Jobs for workers who are Black" = "CR02wac_pctchange",
+             "Jobs for workers of other races" = "CRothwac_pctchange")
+generate_parallel_trends_plot(df = topcommutezones, "pct", "wac", "commute", vars_g5, "race")
+
+vars_g6 <- c("Jobs for workers who are Hispanic or Latino\n(Residence Area Characteristics)" =
+               "CT02rac_pctchange",
+             "Jobs for workers who are Hispanic or Latino\n(Workplace Area Characteristics)" = "CT02wac_pctchange")
+generate_parallel_trends_plot(df = topcommutezones, "pct", "rac", "commute", vars_g6, "eth")
+
+vars_g7 <- c("Live and work in the same tract" =
+               "S000_same_tract_pctchange",
+             "Work in a designated OZ tract" = "S000_desig_pctchange",
+             "Work in an eligible OZ tract" = "S000_elig_pctchange")
+  
+generate_parallel_trends_plot(df = topcommutezones, "pct", "od", "commute", vars_g7, "od")
 ```
 
 ```{r}
@@ -191,48 +220,7 @@ run_model_outcome <- function(outcome, models, data, covariates=cov, print=TRUE)
 }
 
 models <- c("did")
-run_model_outcome("S000_same_tract", models, data = merged_oz %>% 
-                    filter(post == 0), print=T)
-run_model_outcome("S000_same_tract", models, data = topcommutezones %>% 
-                    filter(post == 0), print=T)
-```
-```{r}
-results <- map_dfr(c(log_outcomes), ~run_model_outcome(., models=models, 
-                                                                 data = merged_oz %>% 
-                                                                   filter(post == 0), print=F))
-results
-```
-
-```{r}
-rac_log_outcomes <- log_outcomes[str_detect(log_outcomes, "rac")]
-wac_log_outcomes <- log_outcomes[str_detect(log_outcomes, "wac")]
-
-rac_pct_outcomes <- pct_outcomes[str_detect(pct_outcomes, "rac")]
-wac_pct_outcomes <- pct_outcomes[str_detect(pct_outcomes, "wac")]
-
-# drop tracts with low employment
-merged_oz %>% 
-  summarize(rac_p5 = quantile(C000rac, 0.05),
-            wac_p5 = quantile(C000wac, 0.05))
-```
-
-```{r}
-results_subsample_rac <- map_dfr(c(rac_log_outcomes), ~run_model_outcome(., models=models, 
-                                                                 data = merged_oz %>% 
-                                                                   filter(post == 0 & C000rac > 500), print=F))
-results_subsample_rac
-
-results_subsample_wac <- map_dfr(c(wac_log_outcomes), ~run_model_outcome(., models=models, 
-                                                                 data = merged_oz %>% 
-                                                                   filter(post == 0 & C000wac > 50), print=F))
-results_subsample_wac
-```
-
-```{r}
-resultspct <- map_dfr(pct_outcomes, ~run_model_outcome(., models=models, 
-                                                                 data = merged_oz %>% 
-                                                                 filter(year > 2014), print=F))
-resultspct
+run_model_outcome("C000rac_pctchange", models, data = merged_oz, print=T)
 ```
 
 ```{r}
@@ -279,9 +267,9 @@ balance_tests_matched
 ```{r}
 # event study plots
 event_model <- function(outcome, data, covariates) {
-  form <- paste0(outcome, " ~ treatment:year_fact2015 + ",
-                    "treatment:year_fact2016 + treatment:year_fact2018 + treatment:year_fact2019 + ",
-                    "year_fact2015 + year_fact2016 + year_fact2018 + year_fact2019")
+  form <- paste0(outcome, " ~ treatment:year_fact2016 + treatment:year_fact2017 + ",
+  "treatment:year_fact2018 + treatment:year_fact2019 + ",
+                    "year_fact2016 + year_fact2017 + year_fact2018 + year_fact2019 + post + treatment")
   
   if (covariates==TRUE) {
     form <- paste0(form, "+", str_c(cov, collapse="+"))
@@ -300,7 +288,8 @@ generate_event_df <- function(outcome, data, covariates = FALSE) {
   mod <- event_model(outcome, data, covariates)
 
 coef_vals <- coeftest(mod, vcovHC(mod, type = 'HC3', cluster = 'group'))
-coef_vals
+coef_vals %>% 
+  print()
 
 coef_vals[,] %>% 
   as_tibble(rownames="outcomes") %>% 
@@ -314,15 +303,16 @@ coef_vals[,] %>%
 }
 
 # generate event study plots using matched data
-event_df <- bind_rows(map_dfr(pct_outcomes, ~generate_event_df(., matched_data, covariates = F)),
-                      map_dfr(pct_outcomes, ~generate_event_df(., matched_data, covariates = T)))
-
+event_df <- bind_rows(map_dfr("C000wac_pctchange", ~generate_event_df(., merged_oz, covariates = F)))
 event_df
+
+generate_event_plot(event_df, "wac_", "matched")
 ```
 
-```{r, fig.height = 15, fig.width = 5}
+
+```{r}
 generate_event_plot <- function(df, type, data_type) {
-  df %>% 
+  plot <- df %>% 
     filter(str_detect(outcome, type)) %>% 
     mutate(type = if_else(covariates == TRUE, "cov", "no cov")) %>% 
     ggplot() +
@@ -332,14 +322,34 @@ generate_event_plot <- function(df, type, data_type) {
     theme_classic() +
     facet_wrap(~outcome, ncol=1, scales = "free") +
     labs(y = "Pre-trend test coefficients (base year 2017)")
+  
+  plot %>% 
+    print()
 
   ggsave(paste0("../2_output/", data_type, "_", type, "event_study.png"),
          height = 15)
 }
 
-generate_event_plot(event_df, "rac_", "matched")
+
 generate_event_plot(event_df, "wac_", "matched")
-generate_event_plot(event_df, "S000_", "matched")
+#generate_event_plot(event_df, "S000_", "matched")
+```
+
+```{r}
+# event study using did package
+formula <- att_gt(yname = "C000wac_pctchange", tname = "year", idname = "GEOID",
+                  xformla = ~1,
+                  gname = "first.treat",
+                  data = merged_oz %>% 
+                    filter(year > 2014) %>% 
+                    mutate(GEOID = as.numeric(GEOID),
+                           first.treat = if_else(treatment == 1, 2018, 0)),
+                           control_group = "nevertreated",
+                  panel=T,
+              est_method = "reg")
+
+summary(formula)
+ggdid(formula)
 ```
 
 
