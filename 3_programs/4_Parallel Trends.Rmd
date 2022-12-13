@@ -55,7 +55,7 @@ merged_oz %>%
   summarize(n = n())
 
 
-cov <- c("log_median_household_income", "total_housing", "percent_white", "percent_postsec", "percent_rent", "percent_hc_covered", "percent_poverty", "percent_suplemental_income", "percent_employed")
+cov <- c("log_median_household_income", "total_housing", "percent_white", "percent_postsec", "percent_rent", "percent_hc_covered", "percent_poverty", "percent_suplemental_income", "percent_employed", "dec_score", "vacancyrate", "pctunder18", "pctover64")
 
 #only top commuting areas
 topcommutezones <- merged_oz %>% 
@@ -66,7 +66,6 @@ topcommutezones %>%
   summarize(across(cov, ~mean(is.na(.))))
 
 #"SE_Flag",
-# , "dec_score", "vacancyrate", "pctunder18", "pctover64"
 ```
 
 # Plots
@@ -304,13 +303,9 @@ event_model <- function(outcome, data, covariates) {
 
 generate_event_df <- function(outcome, data, covariates = FALSE) {
   mod <- event_model(outcome, data, covariates)
-
-mod %>% 
-  summary() %>% 
-  print()
+  
 coef_vals <- coeftest(mod, vcovHC(mod, type = 'HC3', cluster = 'group'))
-coef_vals %>% 
-  print()
+coef_vals
 
 coef_vals[,] %>% 
   as_tibble(rownames="year") %>% 
