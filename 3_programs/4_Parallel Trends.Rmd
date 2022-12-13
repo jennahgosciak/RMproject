@@ -55,7 +55,7 @@ merged_oz %>%
   summarize(n = n())
 
 
-cov <- c("log_median_household_income", "total_housing", "percent_white", "percent_postsec", "percent_rent", "percent_hc_covered", "percent_poverty", "percent_suplemental_income", "percent_employed", "dec_score", "vacancyrate", "pctunder18", "pctover64")
+cov <- c("log_median_household_income", "total_housing", "percent_white", "percent_postsec", "percent_rent", "percent_hc_covered", "percent_poverty", "percent_suplemental_income", "percent_employed", "dec_score", "SE_Flag", "vacancyrate", "pctunder18", "pctover64")
 
 #only top commuting areas
 topcommutezones <- merged_oz %>% 
@@ -273,7 +273,9 @@ balance_tests_matched
 ```
 
 ```{r}
-event_years <- c("yearmin3", "yearmin2", "year0", "year1")
+event_years <- c("period1", "period2", "period4", "period5")
+treat_years <- c("treatyearmin3", "treatyearmin2", "treatyearmin1", 
+                                                    "treatyear0", "treatyear1")
 gen_covariates_int <- function(covariates, year_vars) {
   covariates_list <- map(year_vars, ~str_c(covariates, ":", .)) %>% 
     unlist() %>% 
@@ -284,39 +286,43 @@ gen_covariates_int <- function(covariates, year_vars) {
 
 # event study plots
 event_model <- function(outcome, data, covariates) {
-  form <- paste0(outcome, " ~ yearmin3 + yearmin2 + ",
-                 "year0 + year1")
+  form <- paste0(outcome, " ~ treatyearmin3 + treatyearmin2 + ",
+                 "treatyear0 + treatyear1")
   
   if (covariates==TRUE) {
     covariates_list <- gen_covariates_int(cov, event_years)
     form <- paste0(form, "+", covariates_list)
-  }
-
-  
-  mod <- plm(form, 
+    
+    mod <- plm(form, 
                data = data, 
-               index = c("GEOID", "year"), 
+               index = c("GEOID"), 
                model = "within", 
-               effect = "twoways")
+               effect = "individual")
+  } else {
+    mod <- plm(form, 
+               data = data, 
+               index = c("GEOID", "period"), 
+               model = "within", 
+               effect = "twoways") 
+  }
   return(mod)
 }
 
 generate_event_df <- function(outcome, data, covariates = FALSE) {
   mod <- event_model(outcome, data, covariates)
+  mod
   
-coef_vals <- coeftest(mod, vcovHC(mod, type = 'HC3', cluster = 'group'))
-coef_vals
+  coef_vals <- coeftest(mod, vcovHC(mod, type = 'HC3', cluster = 'group'))
+  coef_vals
 
 coef_vals[,] %>% 
   as_tibble(rownames="year") %>% 
-  filter(year %in% event_years) %>% 
+  filter(year %in% treat_years) %>% 
   mutate(estimate_ci_high = Estimate + (1.96*`Std. Error`),
          estimate_ci_low = Estimate - (1.96*`Std. Error`)) %>% 
-  bind_rows(tibble(year = "yearmin1", Estimate = 0.00, estimate_ci_high=0,
+  bind_rows(tibble(year = "treatyearmin1", Estimate = 0.00, estimate_ci_high=0,
                    estimate_ci_low=0)) %>% 
-  mutate(period = c(-3, -2, -1, 0, 1)[match(year, c("yearmin3",
-                                                    "yearmin2", "yearmin1", 
-                                                    "year0", "year1"))],
+  mutate(period = c(-3, -2, -1, 0, 1)[match(year, treat_years)],
          outcome = outcome,
          covariates = covariates) %>% 
   select(estimate = Estimate, estimate_ci_high, estimate_ci_low, period, outcome, covariates)
@@ -325,16 +331,28 @@ coef_vals[,] %>%
 
 event_df_pre <- topcommutezones %>%
   filter(year > 2014) %>%
-  mutate(yearmin3 = if_else(treatment == 1 & year == 2015, 1, 0),
-         yearmin2 = if_else(treatment == 1 & year == 2017, 1, 0),
-         yearmin1 = if_else(treatment == 1 & year == 2016,1, 0),
-         year0 = if_else(treatment == 1 & year == 2018,1, 0),
-         year1 = if_else(treatment == 1 & year == 2019,1,0))
+  mutate(period = case_when(year == 2015 ~ 1,
+                            year == 2016 ~ 2,
+                            year == 2017 ~ 3,
+                            year == 2018 ~ 4,
+                            year == 2019 ~ 5),
+         period1 = if_else(year == 2015, 1, 0),
+         period2 = if_else(year == 2017, 1, 0),
+         period3 = if_else(year == 2016,1, 0),
+         period4 = if_else(year == 2018,1, 0),
+         period5 = if_else(year == 2019,1,0),
+         treatyearmin3 = if_else(treatment == 1 & year == 2015, 1, 0),
+         treatyearmin2 = if_else(treatment == 1 & year == 2017, 1, 0),
+         treatyearmin1 = if_else(treatment == 1 & year == 2016,1, 0),
+         treatyear0 = if_else(treatment == 1 & year == 2018,1, 0),
+         treatyear1 = if_else(treatment == 1 & year == 2019,1,0))
 
 # generate event study plots
 event_df <- bind_rows(map_dfr(pct_outcomes, ~generate_event_df(., event_df_pre, covariates = F)),
                               map_dfr(pct_outcomes, ~generate_event_df(., event_df_pre, covariates = T)))
 event_df
+
+map_dfr(pct_outcomes[1:2], ~generate_event_df(., event_df_pre, covariates = T))
 ```
 
 ```{r}
