@@ -35,7 +35,6 @@ outcomes <- c("C000rac",
               "CT02rac", "CT02wac",
               "S000_same_tract", "S000_desig", "S000_elig")
 
-log_outcomes <- str_c(outcomes, "_log")
 pct_outcomes <- str_c(outcomes, "_pctchange")
 
 
@@ -48,19 +47,26 @@ merged_oz <- readRDS("../2_output/analysis_file.RDS")  %>%
            year_fact2016 = if_else(year == 2016, 1, 0),
            year_fact2017 = if_else(year == 2017, 1, 0),
            year_fact2018 = if_else(year == 2018, 1, 0),
-           year_fact2019 = if_else(year == 2019, 1, 0))
+           year_fact2019 = if_else(year == 2019, 1, 0)) %>% 
+  mutate(post = if_else(year >= 2018, 1, 0))
 
 merged_oz %>% 
   group_by(year, DESIGNATED) %>% 
   summarize(n = n())
 
 
-cov <- c("log_median_household_income", "total_housing", "percent_white", "percent_postsec", "percent_rent", "percent_hc_covered", "percent_poverty", "percent_suplemental_income", "percent_employed", "dec_score", "SE_Flag", "vacancyrate", "pctunder18", "pctover64")
+cov <- c("log_median_household_income", "total_housing", "percent_white", "percent_postsec", "percent_rent", "percent_hc_covered", "percent_poverty", "percent_suplemental_income", "percent_employed")
 
 #only top commuting areas
-
 topcommutezones <- merged_oz %>% 
   filter(`Our CBSA`==1)
+
+topcommutezones %>% 
+  select(cov) %>% 
+  summarize(across(cov, ~mean(is.na(.))))
+
+#"SE_Flag",
+# , "dec_score", "vacancyrate", "pctunder18", "pctover64"
 ```
 
 # Plots
@@ -91,16 +97,18 @@ generate_parallel_trends_plot <- function(df, type, outcome_type, df_type="commu
   df_pivot <- df %>% 
     rename_at(outcomes_list, ~names(outcomes_list)) %>% 
     pivot_longer(names(outcomes_list), names_to = "outcomes", values_to = "employment") %>% 
-    filter(year > 2014) %>% 
-    group_by(year, treatment, outcomes) %>% 
-    mutate(employment = if_else(employment == Inf, 0, employment)) %>% 
-    summarize(employment = mean(employment, na.rm = T))
+    filter(year > 2014)
   
   plot <- df_pivot %>% 
       ggplot(aes(x = year, y = employment)) +
-      geom_line(aes(color=if_else(treatment == 1, "Selected", "Eligible"))) +
-      #geom_smooth(aes(color=if_else(treatment == 1, "Selected", "Eligible")),
-      #            method=lm) +
+      stat_summary(aes(color=if_else(treatment == 1, "Selected", "Eligible")), geom = "point", fun.y = mean) +
+      geom_smooth(data=df_pivot %>% 
+                    filter(post == 0),
+                  aes(color=if_else(treatment == 1, "Selected", "Eligible")), method='lm', se=F) +
+    geom_smooth(data=df_pivot %>% 
+                    filter(post == 1),
+                  aes(color=if_else(treatment == 1, "Selected", "Eligible")), method='lm', se=F) +
+      geom_vline(aes(xintercept=2017.5), color = 'gray', linetype = 'dashed') +
       theme_classic() +
       labs(color = "Designation",
            y = "Growth (percentage points)",
@@ -116,6 +124,7 @@ generate_parallel_trends_plot <- function(df, type, outcome_type, df_type="commu
          width = 11)
 }
 ```
+
 
 ```{r}
 vars_g1 <- c("Total employment\n(Residence Area Characteristics)" =
@@ -265,92 +274,111 @@ balance_tests_matched
 ```
 
 ```{r}
+event_years <- c("yearmin3", "yearmin2", "year0", "year1")
+gen_covariates_int <- function(covariates, year_vars) {
+  covariates_list <- map(year_vars, ~str_c(covariates, ":", .)) %>% 
+    unlist() %>% 
+    str_c(collapse = " + ")
+  return(covariates_list)
+    
+}
+
 # event study plots
 event_model <- function(outcome, data, covariates) {
-  form <- paste0(outcome, " ~ treatment:year_fact2016 + treatment:year_fact2017 + ",
-  "treatment:year_fact2018 + treatment:year_fact2019 + ",
-                    "year_fact2016 + year_fact2017 + year_fact2018 + year_fact2019 + post + treatment")
+  form <- paste0(outcome, " ~ yearmin3 + yearmin2 + ",
+                 "year0 + year1")
   
   if (covariates==TRUE) {
-    form <- paste0(form, "+", str_c(cov, collapse="+"))
+    covariates_list <- gen_covariates_int(cov, event_years)
+    form <- paste0(form, "+", covariates_list)
   }
+
   
   mod <- plm(form, 
                data = data, 
-               index = c("GEOID"), 
+               index = c("GEOID", "year"), 
                model = "within", 
-               effect = "individual")
-  
+               effect = "twoways")
   return(mod)
 }
 
 generate_event_df <- function(outcome, data, covariates = FALSE) {
   mod <- event_model(outcome, data, covariates)
 
+mod %>% 
+  summary() %>% 
+  print()
 coef_vals <- coeftest(mod, vcovHC(mod, type = 'HC3', cluster = 'group'))
 coef_vals %>% 
   print()
 
 coef_vals[,] %>% 
-  as_tibble(rownames="outcomes") %>% 
+  as_tibble(rownames="year") %>% 
+  filter(year %in% event_years) %>% 
   mutate(estimate_ci_high = Estimate + (1.96*`Std. Error`),
          estimate_ci_low = Estimate - (1.96*`Std. Error`)) %>% 
-  filter(str_detect(outcomes, "treatment")) %>% 
-  mutate(year = as.numeric(str_replace_all(outcomes, "treatment:year_fact", "")),
+  bind_rows(tibble(year = "yearmin1", Estimate = 0.00, estimate_ci_high=0,
+                   estimate_ci_low=0)) %>% 
+  mutate(period = c(-3, -2, -1, 0, 1)[match(year, c("yearmin3",
+                                                    "yearmin2", "yearmin1", 
+                                                    "year0", "year1"))],
          outcome = outcome,
          covariates = covariates) %>% 
-  select(estimate = Estimate, estimate_ci_high, estimate_ci_low, year, outcome, covariates)
+  select(estimate = Estimate, estimate_ci_high, estimate_ci_low, period, outcome, covariates)
 }
 
-# generate event study plots using matched data
-event_df <- bind_rows(map_dfr("C000wac_pctchange", ~generate_event_df(., merged_oz, covariates = F)))
-event_df
 
-generate_event_plot(event_df, "wac_", "matched")
+event_df_pre <- topcommutezones %>%
+  filter(year > 2014) %>%
+  mutate(yearmin3 = if_else(treatment == 1 & year == 2015, 1, 0),
+         yearmin2 = if_else(treatment == 1 & year == 2017, 1, 0),
+         yearmin1 = if_else(treatment == 1 & year == 2016,1, 0),
+         year0 = if_else(treatment == 1 & year == 2018,1, 0),
+         year1 = if_else(treatment == 1 & year == 2019,1,0))
+
+# generate event study plots
+event_df <- bind_rows(map_dfr(pct_outcomes, ~generate_event_df(., event_df_pre, covariates = F)),
+                              map_dfr(pct_outcomes, ~generate_event_df(., event_df_pre, covariates = T)))
+event_df
 ```
 
-
 ```{r}
-generate_event_plot <- function(df, type, data_type) {
+generate_event_plot <- function(df, type, vars, vars_lab, sample) {
   plot <- df %>% 
-    filter(str_detect(outcome, type)) %>% 
-    mutate(type = if_else(covariates == TRUE, "cov", "no cov")) %>% 
-    ggplot() +
-    geom_errorbar(aes(year, ymin = estimate_ci_low, ymax = estimate_ci_high, color = type),
-                  position = "dodge") +
-    geom_hline(aes(yintercept = 0)) +
+    mutate(estimate = if_else(period == -1, 0, estimate)) %>% 
+    filter(outcome %in% vars) %>% 
+    mutate(outcome2 = names(vars)[match(outcome, vars)]) %>% 
+    mutate(type = if_else(covariates == TRUE, "covariates", "no covariates"),
+           type = factor(type, levels = c("no covariates", "covariates"), ordered = T)) %>% 
+    ggplot(aes(period, estimate, color=type)) +
+    #geom_line(linetype='dashed') +
+    geom_point(aes(group = type), position=position_dodge(width=0.8)) + 
+    geom_errorbar(aes(ymin = estimate_ci_low,
+                      ymax = estimate_ci_high, color = type),
+                  position=position_dodge(width=0.8)) +
+    geom_hline(aes(yintercept =0), color='gray', linetype = 'dashed') +
     theme_classic() +
-    facet_wrap(~outcome, ncol=1, scales = "free") +
-    labs(y = "Pre-trend test coefficients (base year 2017)")
+    labs(y = "Pre-trend test coefficients (base year 2017)")  +
+    facet_wrap(~outcome2, nrow=1, scales = "free") +
+    scale_color_manual(values= wes_palette("Moonrise2", n = 2))
   
   plot %>% 
     print()
 
-  ggsave(paste0("../2_output/", data_type, "_", type, "event_study.png"),
-         height = 15)
+  ggsave(paste0("../2_output/", vars_lab, "_", type, sample, "_event_study.png"),
+         width=11)
 }
 
-
-generate_event_plot(event_df, "wac_", "matched")
-#generate_event_plot(event_df, "S000_", "matched")
+generate_event_plot(event_df,"rac", vars_g1, "commute", "total")
+generate_event_plot(event_df, "rac", vars_g2, "commute", "wage")
+generate_event_plot(event_df, "wac", vars_g3, "commute", "wage")
+generate_event_plot(event_df, "rac", vars_g4, "commute", "race")
+generate_event_plot(event_df, "wac", vars_g5, "commute", "race")
+generate_event_plot(event_df, "rac", vars_g6, "commute", "eth")
+generate_event_plot(event_df, "od", vars_g7, "commute", "od")
 ```
 
-```{r}
-# event study using did package
-formula <- att_gt(yname = "C000wac_pctchange", tname = "year", idname = "GEOID",
-                  xformla = ~1,
-                  gname = "first.treat",
-                  data = merged_oz %>% 
-                    filter(year > 2014) %>% 
-                    mutate(GEOID = as.numeric(GEOID),
-                           first.treat = if_else(treatment == 1, 2018, 0)),
-                           control_group = "nevertreated",
-                  panel=T,
-              est_method = "reg")
 
-summary(formula)
-ggdid(formula)
-```
 
 
 
