@@ -1,5 +1,5 @@
-# Doctoral Research Methods
-## Opportunity Zones and Employment
+# Doctoral Research Methods Empirical Research Project
+## The Effect of Opportunity Zones on Employment
 
 Folder structure:
 - 0_data/
