@@ -10,7 +10,8 @@ This repository holds all code used in developing the fall semester empirical re
 - **Key findings:** Few statistically significant or practically significant results
 
 
-Folder structure:
+
+**Folder structure:**
 - 0_data: local folder for storing data files, though most files were downloaded from through R packages.
 - 1_input: variable lists and other documentation.
 - 2_output: plots and table output.
