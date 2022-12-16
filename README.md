@@ -1,7 +1,7 @@
 # The Effect of Opportunity Zones on Employment: Early Results from the Longitudinal Employer-Household Dynamics Origin-Destination Employment Statistics
 ## Authors: Adelaide Currin & Jennah Gosciak, December 2022
 
-This repository holds all code used in developing the fall semester empirical research project in NYU Wagner's Doctoral Research Methods course.
+This repository holds all code used in developing the fall semester empirical research project in NYU Wagner's Doctoral Research Methods course. Early results can be viewed [here](https://docs.google.com/presentation/d/19Nqy_VqwDpl-Me1GjUJ6hwGkGivOs0sjsjoTvenWi_I/edit?usp=sharing).
 
 - **Research Design:** DiD; Two way fixed effects
 - **Intervention:** Opportunity Zones (OZs); A 2018 place-based policy that incentivizes investment in selected census tracts
