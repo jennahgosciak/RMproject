@@ -1,5 +1,7 @@
-# Doctoral Research Methods Empirical Research Project
-## The Effect of Opportunity Zones on Employment
+# The Effect of Opportunity Zones on Employment
+## Early Results from the Longitudinal Employer-Household Dynamics Origin-Destination Employment Statistics
+
+## Authors: Adelaide Currin & Jennah Gosciak
 
 Folder structure:
 - 0_data/
