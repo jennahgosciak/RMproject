@@ -12,6 +12,10 @@ This repository holds all code used in developing the fall semester empirical re
 
 Folder structure:
 - 0_data/
+  - Local folder for storing data files. Though most files were downloaded from through R packages.
 - 1_input/
+  - Variable lists and other documentation.
 - 2_output/
+  - Plots and table output.
 - 3_programs/
+  - Data cleaning and analysis code.
