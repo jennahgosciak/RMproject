@@ -11,11 +11,12 @@ This repository holds all code used in developing the fall semester empirical re
 
 
 Folder structure:
-- 0_data/
-  - Local folder for storing data files. Though most files were downloaded from through R packages.
-- 1_input/
-  - Variable lists and other documentation.
-- 2_output/
-  - Plots and table output.
-- 3_programs/
-  - Data cleaning and analysis code.
+- 0_data: local folder for storing data files, though most files were downloaded from through R packages.
+- 1_input: variable lists and other documentation.
+- 2_output: plots and table output.
+- 3_programs: data cleaning and analysis code.
+  - [0_Load Ozs and Census Data.Rmd](https://github.com/jennahgosciak/RMproject/blob/main/3_programs/0_Load%20Ozs%20and%20Census%20Data.Rmd): downloads raw data through `lehdr` and `tidycensus`. Processes OZ data file from HUD
+  - [1_LODES Data Cleaning.Rmd](https://github.com/jennahgosciak/RMproject/blob/main/3_programs/1_LODES%20Data%20Cleaning.Rmd): appends yearly LODES data files together to create a single LODES file, extracts relevant outcome variables
+  - [2_Create Analysis File.Rmd](https://github.com/jennahgosciak/RMproject/blob/main/3_programs/2_Create%20Analysis%20File.Rmd): merges and appends files together, creates key constructs
+  - [3_Run Analysis.Rmd](https://github.com/jennahgosciak/RMproject/blob/main/3_programs/3_Run%20Analysis.Rmd): runs main specifications for the analysis
+  - [4_Parallel Trends.Rmd](https://github.com/jennahgosciak/RMproject/blob/main/3_programs/3_Run%20Analysis.Rmd): tests the parallel trends assumption and runs baseline equivalence checks
