@@ -116,7 +116,8 @@ merged_oz <-  merged_oz %>%
 #Load Urban
 urban <-  read_excel("../0_data/urbaninstitute_tractlevelozanalysis_update01142021.xlsx") %>% 
   select( geoid, dec_score, SE_Flag, vacancyrate, pctunder18, pctover64) %>% 
-  rename(GEOID = geoid)
+  rename(GEOID = geoid) %>% 
+  mutate(SE_Flag = replace_na(SE_Flag, 0))
 
 merged_oz <-  merged_oz %>% 
   left_join(urban, by = c("GEOID"))
