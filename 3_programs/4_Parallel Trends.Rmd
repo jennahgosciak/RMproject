@@ -170,9 +170,21 @@ generate_parallel_trends_plot(df = topcommutezones, "pct", "od", "commute", vars
 
 ```{r}
 # functions for each model
-pooled_ols <- function(outcome, data, covariates) {
+pooled_ols1 <- function(outcome, data, covariates) {
+  
+  return(lm(paste0(outcome, " ~ treatment:year + year + treatment"),
+               data = data))
+}
+
+pooled_ols2 <- function(outcome, data, covariates) {
   
   return(lm(paste0(outcome, " ~ treatment:year + year + treatment +  ", str_c(covariates, collapse = "+")),
+               data = data))
+}
+
+pooled_ols3 <- function(outcome, data, covariates) {
+  
+  return(lm(paste0(outcome, " ~ treatment:year + year + treatment +  post + post:year + post:treatment + year:post:treatment +", str_c(covariates, collapse = "+")),
                data = data))
 }
 ```
@@ -202,7 +214,8 @@ generate_model_output <- function(fit_model, outcome, treat_var, model_type, dat
   pval <- round(coef_vals[coef_pos, 4], 4)
   coef_ast <- case_when(pval < 0.01 ~ paste0(coef, "***"),
                         pval < 0.05 ~ paste0(coef, "**"),
-                        pval < 0.1 ~ paste0(coef, "*"))
+                        pval < 0.1 ~ paste0(coef, "*"),
+                        TRUE ~ paste0(coef))
   
   return(data.frame("outcome" = outcome,
                "treatment_post" = sum_fit_plm$coefficients[coef_pos, 1],
@@ -210,6 +223,7 @@ generate_model_output <- function(fit_model, outcome, treat_var, model_type, dat
                "se" = se,
                "pval" = pval,
                "rsq" = round(sum_fit_plm$r.squared[[1]], 3),
+               "n" = nobs(fit_model),
                "model_type" = model_type))
 }
 
@@ -218,26 +232,73 @@ run_model_outcome <- function(outcome, models, data, covariates=cov, print=TRUE)
   print(str_c("Running model for ", outcome))
   results <- data.frame()
   
-  if ("did" %in% models) {
-    fit_did <- pooled_ols(outcome, data, covariates)
+  if ("did1" %in% models) {
+    fit_did <- pooled_ols1(outcome, data, covariates)
     results <- bind_rows(results, generate_model_output(fit_did, outcome,
-                                                        "treatment:year", "did", data, print=print)) 
+                                                        "treatment:year", "did1", data, print=print)) 
+  }
+  if ("did2" %in% models) {
+    fit_did <- pooled_ols2(outcome, data, covariates)
+    results <- bind_rows(results, generate_model_output(fit_did, outcome,
+                                                        "treatment:year", "did2", data, print=print)) 
+  }
+  if ("did3" %in% models) {
+    fit_did <- pooled_ols3(outcome, data, covariates)
+    results <- bind_rows(results, generate_model_output(fit_did, outcome,
+                                                        "treatment:year", "did3", data, print=print)) 
   }
  
   return(results)
 }
 
-models <- c("did")
+models <- c("did1", "did2", "did3")
 run_model_outcome("C000rac_pctchange", models, data = merged_oz, print=T)
 ```
 
 ```{r}
-resultspctcommuting <- map_dfr(pct_outcomes, ~run_model_outcome(., models=models, 
-                                                                 data = topcommutezones %>% 
-                                                                 filter(year > 2014), print=F))
-resultspctcommuting
+format_results <- function(df) {
+  df %>% head() %>% 
+    print()
+  df_adj <- df %>% 
+    mutate(pval_adjust_ast = case_when(p_adjust < 0.01 ~ "***",
+                                       p_adjust < 0.05 ~ "**",
+                                       p_adjust < 0.1 ~ "*",
+                                       TRUE ~ "")) %>% 
+    mutate(coef_full = str_c(round(treatment_post, 2), pval_adjust_ast, "\n(", se, ")")) %>% 
+    select(outcome, coef_full, model_type) %>% 
+    pivot_wider(id_cols = "outcome", names_from = "model_type", values_from = "coef_full") %>% 
+    select(outcome, did1_adj = did1, did2_adj = did2, did3_adj = did3)
+  
+  df %>% 
+    mutate(coef_full = paste0(coef_asterisk, "\n(", se, ")")) %>% 
+    select(outcome, coef_full, model_type) %>% 
+    pivot_wider(id_cols = "outcome", names_from = "model_type", values_from = "coef_full") %>% 
+    select(outcome, did1, did2, did3) %>% 
+    left_join(df_adj, on = "outcome") %>% 
+    select(outcome, did1, did2, did3, did1_adj, did2_adj, did3_adj)
+}
 ```
 
+
+```{r}
+resultspctcommuting <- bind_rows(map_dfr(pct_outcomes, ~run_model_outcome(., models=c("did1", "did2"), 
+                                                                 data = topcommutezones %>% 
+                                                                 filter(year > 2014 & post == 0), print=F)),
+                                 map_dfr(pct_outcomes, ~run_model_outcome(., models=c("did3"), 
+                                                                 data = topcommutezones %>% 
+                                                                 filter(year > 2014), print=F)))  %>% 
+  group_by(model_type) %>% 
+  mutate(p_adjust = p.adjust(pval, method = "BH"))
+resultspctcommuting
+```
+```{r}
+resultspctcommuting %>%
+  write_csv(str_glue("../2_output/trends_pct_commute_{date}.csv"), na="")
+
+resultspctcommuting %>% 
+  format_results() %>% 
+  write_csv(str_glue("../2_output/trends_pct_commute_form_{date}.csv"), na="")
+```
 
 ```{r}
 ols_balance <- function(outcome, data) {

@@ -17,6 +17,7 @@ library(plm)
 library(lmtest)
 library(sandwich)
 library(wfe)
+library(stats)
 data_dir <- "/Users/adelaide/Documents/GitHub/RMproject"
 
 date <- Sys.Date() %>% 
@@ -54,15 +55,6 @@ merged_oz %>%
 #only top commuting areas
 topcommutezones <- merged_oz %>% 
   filter(`Our CBSA`==1)
-
-matched_data <- readRDS("../2_output/matched_analysis_file.RDS")
-matched_data
-
-matched_data %>% 
-  select(`Our CBSA`) %>% 
-  unique() %>% 
-  magrittr::equals(1) %>% 
-  stopifnot()
 ```
 
 
@@ -203,27 +195,27 @@ models <- c("did", "twfe_cov", "twfe", "event")
 ```
 
 ```{r}
-#results log whole sample
-# results <- map_dfr(c(log_outcomes), ~run_model_outcome(., models=models, 
-#                                                        data = merged_oz, print=FALSE))
-# results
-# 
-# # save to output
-# results %>%
-#   write_csv(str_glue("../2_output/results_log_{date}.csv"), na="")
-```
-
-```{r}
-#results pct whole sample
-results <- map_dfr(c(pct_outcomes), ~run_model_outcome(., models=c("twfe", "twfe_cov",
-                                                                   "did"), 
-                                                       data = merged_oz %>% 
-                                                         filter(year > 2014), print=FALSE))
-results
-
-# save to output
-results %>%
-  write_csv(str_glue("../2_output/results_pct_{date}.csv"), na="")
+format_results <- function(df) {
+  df %>% head()
+  df_adj <- df %>% 
+    mutate(pval_adjust_ast = case_when(p_adjust < 0.01 ~ "***",
+                                       p_adjust < 0.05 ~ "**",
+                                       p_adjust < 0.1 ~ "*",
+                                       TRUE ~ "")) %>% 
+    mutate(coef_full = str_c(round(treatment_post, 2), pval_adjust_ast, "\n(", se, ")")) %>% 
+    select(outcome, coef_full, model_type) %>% 
+    pivot_wider(id_cols = "outcome", names_from = "model_type", values_from = "coef_full") %>% 
+    select(outcome, did_adj = did, twfe_adj = twfe, twfe_cov_adj = twfe_cov)
+  
+  df %>% 
+    mutate(coef_full = paste0(coef_asterisk, "\n(", se, ")")) %>% 
+    select(outcome, coef_full, model_type) %>% 
+    pivot_wider(id_cols = "outcome", names_from = "model_type", values_from = "coef_full") %>% 
+    select(outcome, did, twfe, twfe_cov) %>% 
+    left_join(df_adj, on = "outcome") %>% 
+    select(outcome, did, twfe, twfe_cov, did_adj, twfe_adj, twfe_cov_adj)
+  
+}
 ```
 
 ```{r}
@@ -231,41 +223,21 @@ results %>%
 results <- map_dfr(c(pct_outcomes), ~run_model_outcome(., models=c("twfe", "twfe_cov",
                                                                    "did"), 
                                                        data = topcommutezones %>% 
-                                                         filter(year > 2014), print=FALSE))
+                                                         filter(year > 2014), print=FALSE)) %>% 
+  group_by(model_type) %>% 
+  mutate(p_adjust = p.adjust(pval, method = "BH"))
 results
+```
 
+```{r}
 # save to output
 results %>%
   write_csv(str_glue("../2_output/results_pct_commute_{date}.csv"), na="")
-```
-```{r}
-#results matched data
-results <- map_dfr(c(pct_outcomes), ~run_model_outcome(., models=c("twfe", "twfe_cov",
-                                                                   "did"), 
-                                                       data = matched_data %>% 
-                                                         filter(year > 2014), print=FALSE))
-results
-
-# save to output
-results %>%
-  write_csv(str_glue("../2_output/results_pct_matched_{date}.csv"), na="")
-
-results
-
-format_results <- function(df) {
-  df %>% 
-    mutate(coef_full = paste0(coef_asterisk, "\n(", se, ")")) %>% 
-    select(outcome, coef_full, model_type) %>% 
-    pivot_wider(id_cols = "outcome", names_from = "model_type", values_from = "coef_full") %>% 
-    select(outcome, did, twfe, twfe_cov)
-  
-}
 
 results %>% 
   format_results() %>% 
-  write_csv(str_glue("../2_output/results_pct_matched_form_{date}.csv"), na="")
+  write_csv(str_glue("../2_output/results_pct_commute_form_{date}.csv"), na="")
 ```
-
 
 ```{r}
 # placebo test whole sample
@@ -274,31 +246,9 @@ placebo_df <- merged_oz %>%
   select(-c(post, post_treatment)) %>%
   mutate(post = if_else(year >= 2016, 1, 0),
          post_treatment = post*treatment)
-
-# placebo_results <- map_dfr(c(log_outcomes), ~run_model_outcome(., models=c("did", "twfe", "twfe_cov"), 
-#                                                                data = placebo_df,
-#                                                     print=FALSE))
-# placebo_results
-# 
-# # save to output
-# placebo_results %>% 
-#   write_csv(str_glue("../2_output/placebo_log_{date}.csv"), na="")
-
 ```
 
 ```{r}
-# placebo test whole sample pct 
-placebo_results <- map_dfr(c(pct_outcomes), ~run_model_outcome(., 
-                                                               models=c("did", "twfe", "twfe_cov"), 
-                                                               data = placebo_df %>% 
-                                                                 filter(year > 2014),
-                                                    print=FALSE))
-placebo_results
-
-# save to output
-placebo_results %>% 
-  write_csv(str_glue("../2_output/placebo_pct_{date}.csv"), na="")
-
 # placebo test commuting sample pct
 placebo_df_commute <- topcommutezones %>% 
   filter(post == 0) %>% 
@@ -308,36 +258,22 @@ placebo_df_commute <- topcommutezones %>%
 
 placebo_results <- map_dfr(c(pct_outcomes), ~run_model_outcome(., models=c("did", "twfe", "twfe_cov"), 
                                                                data = placebo_df_commute,
-                                                    print=FALSE))
-placebo_results
+                                                    print=FALSE)) %>% 
+  group_by(model_type) %>% 
+  mutate(p_adjust = p.adjust(pval, method = "BH"))
 
+placebo_results
+```
+
+```{r}
 # save to output
 placebo_results %>% 
   write_csv(str_glue("../2_output/placebo_pct_commute_{date}.csv"), na="")
 
-```
-```{r}
-placebo_df <- matched_data %>% 
-  filter(post == 0 & `Our CBSA` == 1) %>% 
-  select(-c(post, post_treatment)) %>%
-  mutate(post = if_else(year >= 2016, 1, 0),
-         post_treatment = post*treatment)
-
-# placebo test whole sample pct 
-placebo_results_matched <- map_dfr(c(pct_outcomes), ~run_model_outcome(., 
-                                                               models=c("did", "twfe", "twfe_cov"), 
-                                                               data = placebo_df %>% 
-                                                                 filter(year > 2014),
-                                                    print=FALSE))
-placebo_results_matched
-
-# save to output
-placebo_results_matched %>% 
-  write_csv(str_glue("../2_output/placebo_pct_matched_{date}.csv"), na="")
-
-placebo_results_matched %>% 
+placebo_results %>% 
   format_results() %>% 
-  write_csv(str_glue("../2_output/placebo_pct_matched_form_{date}.csv"), na="")
+  write_csv(str_glue("../2_output/placebo_pct_commute_form_{date}.csv"), na="")
 ```
+
 
 
