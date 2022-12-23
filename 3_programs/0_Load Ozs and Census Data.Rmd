@@ -13,7 +13,6 @@ library(lehdr)
 library(sf)
 library(readxl)
 data_dir <- "/Users/adelaide/Documents/GitHub/RMproject"
-
 ```
 
 ```{r}
@@ -27,9 +26,9 @@ shellname <- "acs_5_2017.xlsx"
 download.file(shell_2017, str_glue("{shelldir}/{shellname}"))
 ```
 ```{r}
-#Load
-acs_covlist <- read_xlsx(path("../0_data", "codebook.xlsx")) %>% 
-  filter(Include ==1)
+# Load
+acs_covlist <- read_xlsx(path("../0_data", "codebook.xlsx")) %>%
+  filter(Include == 1)
 
 acs_covs <- acs_covlist$`ACS Code`
 names(acs_covs) <- acs_covlist$Variable
@@ -37,115 +36,117 @@ names(acs_covs) <- acs_covlist$Variable
 
 ```{r}
 # load acs data
-get_acs_yr <- function(yr){
-  get_acs(geography = "tract", 
-          variables = c(acs_covs), 
-          state = c(state.abb, "dc"), 
-          year = yr) %>% 
-    mutate(year = yr) %>% 
+get_acs_yr <- function(yr) {
+  get_acs(
+    geography = "tract",
+    variables = c(acs_covs),
+    state = c(state.abb, "dc"),
+    year = yr
+  ) %>%
+    mutate(year = yr) %>%
     mutate(GEOID = as.numeric(GEOID))
 }
 
-acs <- map_dfr(c(2017), ~get_acs_yr(.) )%>% 
-  mutate(GEOID = as.numeric(GEOID)) 
+acs <- map_dfr(c(2017), ~ get_acs_yr(.)) %>%
+  mutate(GEOID = as.numeric(GEOID))
 acs
 ```
 
 ```{r}
 # load oz csv data
-oz_tracts <- read_csv(path("../0_data", "Opportunity_Zone_Eligible_Census_Tracts.csv")) %>% 
-  mutate(GEOID = as.numeric(GEOID)) %>% 
+oz_tracts <- read_csv(path("../0_data", "Opportunity_Zone_Eligible_Census_Tracts.csv")) %>%
+  mutate(GEOID = as.numeric(GEOID)) %>%
   mutate(GEOID_CHANGE = as.numeric(GEOID_CHANGE))
 
 # identify tracts that are ozs
-acs_oz_tracts <- acs %>% 
-    left_join(oz_tracts %>% 
-    select(GEOID, STATE, COUNTY, GEOID_CHANGE, DESIGNATED, TRACT_TYPE, LIC, CONTIGUOUS), by = c("GEOID" = "GEOID")) %>% 
-    filter(!is.na(DESIGNATED))
+acs_oz_tracts <- acs %>%
+  left_join(oz_tracts %>%
+    select(GEOID, STATE, COUNTY, GEOID_CHANGE, DESIGNATED, TRACT_TYPE, LIC, CONTIGUOUS), by = c("GEOID" = "GEOID")) %>%
+  filter(!is.na(DESIGNATED))
 
 acs_oz_tracts
 ```
 ```{r}
-orphans <- oz_tracts %>% 
-    anti_join(acs %>% 
+orphans <- oz_tracts %>%
+  anti_join(acs %>%
     select(GEOID), by = c("GEOID" = "GEOID"))
 
-acs_changeGEOID2010 <- acs %>% 
-    left_join(oz_tracts %>% 
-    select(GEOID_CHANGE, DESIGNATED, TRACT_TYPE), by = c("GEOID" = "GEOID_CHANGE")) %>% 
-    filter(!is.na(DESIGNATED))
+acs_changeGEOID2010 <- acs %>%
+  left_join(oz_tracts %>%
+    select(GEOID_CHANGE, DESIGNATED, TRACT_TYPE), by = c("GEOID" = "GEOID_CHANGE")) %>%
+  filter(!is.na(DESIGNATED))
 
-orphans2010 <- oz_tracts %>% 
-    anti_join(acs %>% 
+orphans2010 <- oz_tracts %>%
+  anti_join(acs %>%
     select(GEOID), by = c("GEOID_CHANGE" = "GEOID"))
 
 # reshape
-acs_oz_tracts_all <- bind_rows(acs_oz_tracts, acs_changeGEOID2010) %>% 
-  select(-moe, -GEOID_CHANGE) %>% 
-  spread(key=variable, value=estimate)
+acs_oz_tracts_all <- bind_rows(acs_oz_tracts, acs_changeGEOID2010) %>%
+  select(-moe, -GEOID_CHANGE) %>%
+  spread(key = variable, value = estimate)
 
-acs_oz_tracts_all %>% 
+acs_oz_tracts_all %>%
   write_csv("../2_output/acs_oz_data.csv", na = "")
-
 ```
 
 ```{r}
 # examine range and missing values
 
-acs_oz_tracts_all %>% 
-    summarise(mean = mean(associate, na.rm = T),
-              range = paste(min(associate, na.rm = T), "-", max(associate, na.rm = T)),
-              na = sum(is.na(associate)))
+acs_oz_tracts_all %>%
+  summarise(
+    mean = mean(associate, na.rm = T),
+    range = paste(min(associate, na.rm = T), "-", max(associate, na.rm = T)),
+    na = sum(is.na(associate))
+  )
 
-acs_oz_tracts_all %>% 
-    group_by(DESIGNATED) %>% 
-    summarise(mean = mean(associate, na.rm = T),
-                    range = paste(min(associate, na.rm = T), "-", max(associate, na.rm = T)),
-                    na = sum(is.na(associate)))
-
-
+acs_oz_tracts_all %>%
+  group_by(DESIGNATED) %>%
+  summarise(
+    mean = mean(associate, na.rm = T),
+    range = paste(min(associate, na.rm = T), "-", max(associate, na.rm = T)),
+    na = sum(is.na(associate))
+  )
 ```
 
 
 ```{r}
 # For 2010 and 2020 tract merging
 
-# download 2020 tract relationship file 
+# download 2020 tract relationship file
 # txturl <- "https://www2.census.gov/geo/docs/maps-data/data/rel2020/tract/tab20_tract20_tract10_natl.txt"
 # txtdir <- str_glue("{data_dir}")
 # txtname <- "relationship_file.txt"
-# 
+#
 # # write to drive
 # download.file(txturl, str_glue("{txtdir}/{txtname}"))
-# 
+#
 # #Load
 # relationship_file <- read.table(file = "relationship_file.txt", header = TRUE, sep = "|", dec = ".")
-# 
+#
 # #merge
-# acs_changeGEOID2010 <- acs %>% 
-#     left_join(oz_tracts %>% 
-#     select(GEOID_CHANGE, DESIGNATED, TRACT_TYPE), by = c("GEOID" = "GEOID_CHANGE")) %>% 
+# acs_changeGEOID2010 <- acs %>%
+#     left_join(oz_tracts %>%
+#     select(GEOID_CHANGE, DESIGNATED, TRACT_TYPE), by = c("GEOID" = "GEOID_CHANGE")) %>%
 #     filter(DESIGNATED == "True" | DESIGNATED == "False")
-# 
-# orphans2010 <- oz_tracts %>% 
-#     anti_join(acs %>% 
+#
+# orphans2010 <- oz_tracts %>%
+#     anti_join(acs %>%
 #     select(GEOID), by = c("GEOID_CHANGE" = "GEOID"))
-# 
-# acs_oz_2010tracts<- bind_rows(acs_oz_tracts, acs_changeGEOID2010) %>% 
-#   mutate(GEOID_2010 = ifelse(is.na(GEOID_CHANGE), GEOID, GEOID_CHANGE)) 
-# 
+#
+# acs_oz_2010tracts<- bind_rows(acs_oz_tracts, acs_changeGEOID2010) %>%
+#   mutate(GEOID_2010 = ifelse(is.na(GEOID_CHANGE), GEOID, GEOID_CHANGE))
+#
 # #dealing with 2020 data
-# OZ_tracts_2020 <- oz_tracts %>% 
-#     left_join(relationship_file %>% 
-#     select(GEOID_TRACT_20, GEOID_TRACT_10, NAMELSAD_TRACT_10), by = c("GEOID" = "GEOID_TRACT_10"))  %>% 
+# OZ_tracts_2020 <- oz_tracts %>%
+#     left_join(relationship_file %>%
+#     select(GEOID_TRACT_20, GEOID_TRACT_10, NAMELSAD_TRACT_10), by = c("GEOID" = "GEOID_TRACT_10"))  %>%
 #     filter(DESIGNATED == "True" | DESIGNATED == "False")
-# 
-# acs_changeGEOID2020 <- acs %>% 
-#     left_join(OZ_tracts_2020 %>% 
-#     select(GEOID, GEOID_CHANGE, DESIGNATED, TRACT_TYPE, GEOID_TRACT_20, NAMELSAD_TRACT_10), by = c("GEOID" = "GEOID_TRACT_20")) %>% 
-#     filter(GEOID != GEOID.y & year == 2020)  %>% 
+#
+# acs_changeGEOID2020 <- acs %>%
+#     left_join(OZ_tracts_2020 %>%
+#     select(GEOID, GEOID_CHANGE, DESIGNATED, TRACT_TYPE, GEOID_TRACT_20, NAMELSAD_TRACT_10), by = c("GEOID" = "GEOID_TRACT_20")) %>%
+#     filter(GEOID != GEOID.y & year == 2020)  %>%
 #     rename(GEOID_2010 = GEOID.y)
-# 
+#
 # acs_oz_2020tracts <- bind_rows(acs_oz_2010tracts, acs_changeGEOID2020)
-
 ```

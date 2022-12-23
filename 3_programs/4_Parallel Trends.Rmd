@@ -22,170 +22,196 @@ library(wesanderson)
 
 data_dir <- "/Users/adelaide/Documents/GitHub/RMproject"
 
-date <- Sys.Date() %>% 
+date <- Sys.Date() %>%
   str_replace_all("-", "_")
 ```
 
 ```{r}
 # define outcomes and covariates
-outcomes <- c("C000rac", 
-              "C000wac",
-              "CE01rac", "CE01wac", "CE02rac", "CE02wac", "CE03rac", "CE03wac",
-              "CR01rac", "CR01wac", "CR02rac", "CR02wac", "CRothrac", "CRothwac",
-              "CT02rac", "CT02wac",
-              "S000_same_tract", "S000_desig", "S000_elig")
+outcomes <- c(
+  "C000rac",
+  "C000wac",
+  "CE01rac", "CE01wac", "CE02rac", "CE02wac", "CE03rac", "CE03wac",
+  "CR01rac", "CR01wac", "CR02rac", "CR02wac", "CRothrac", "CRothwac",
+  "CT02rac", "CT02wac",
+  "S000_same_tract", "S000_desig", "S000_elig"
+)
 
 pct_outcomes <- str_c(outcomes, "_pctchange")
-
-
 ```
 
 ```{r}
-merged_oz <- readRDS("../2_output/analysis_file.RDS")  %>% 
-  mutate(year_fact2014 = if_else(year == 2014, 1, 0),
-           year_fact2015 = if_else(year == 2015, 1, 0),
-           year_fact2016 = if_else(year == 2016, 1, 0),
-           year_fact2017 = if_else(year == 2017, 1, 0),
-           year_fact2018 = if_else(year == 2018, 1, 0),
-           year_fact2019 = if_else(year == 2019, 1, 0)) %>% 
+merged_oz <- readRDS("../2_output/analysis_file.RDS") %>%
+  mutate(
+    year_fact2014 = if_else(year == 2014, 1, 0),
+    year_fact2015 = if_else(year == 2015, 1, 0),
+    year_fact2016 = if_else(year == 2016, 1, 0),
+    year_fact2017 = if_else(year == 2017, 1, 0),
+    year_fact2018 = if_else(year == 2018, 1, 0),
+    year_fact2019 = if_else(year == 2019, 1, 0)
+  ) %>%
   mutate(post = if_else(year >= 2018, 1, 0))
 
-merged_oz %>% 
-  group_by(year, DESIGNATED) %>% 
+merged_oz %>%
+  group_by(year, DESIGNATED) %>%
   summarize(n = n())
 
 
 cov <- c("log_median_household_income", "total_housing", "percent_white", "percent_postsec", "percent_rent", "percent_hc_covered", "percent_poverty", "percent_suplemental_income", "percent_employed", "dec_score", "SE_Flag", "vacancyrate", "pctunder18", "pctover64")
 
-#only top commuting areas
-topcommutezones <- merged_oz %>% 
-  filter(`Our CBSA`==1)
+# only top commuting areas
+topcommutezones <- merged_oz %>%
+  filter(`Our CBSA` == 1)
 
-topcommutezones %>% 
-  select(cov) %>% 
-  summarize(across(cov, ~mean(is.na(.))))
+topcommutezones %>%
+  select(cov) %>%
+  summarize(across(cov, ~ mean(is.na(.))))
 
-#"SE_Flag",
+# "SE_Flag",
 ```
 
 # Plots
 
 ```{r}
-generate_parallel_trends_plot <- function(df, type, outcome_type, df_type="commute",
-                                          filter_outcomes=NULL, filter_outcomes_lab=NULL) {
+generate_parallel_trends_plot <- function(df, type, outcome_type, df_type = "commute",
+                                          filter_outcomes = NULL, filter_outcomes_lab = NULL) {
   if (type == "log") {
     outcomes_list <- log_outcomes
   } else {
     outcomes_list <- pct_outcomes
   }
-  
+
   if (outcome_type == "rac") {
     outcomes_list <- outcomes_list[str_detect(outcomes_list, "rac_")]
   } else if (outcome_type == "wac") {
     outcomes_list <- outcomes_list[str_detect(outcomes_list, "wac")]
   } else {
     outcomes_list <- outcomes_list[str_detect(outcomes_list, "same") |
-                                     str_detect(outcomes_list, "elig") |
-                                     str_detect(outcomes_list, "desig")]
+      str_detect(outcomes_list, "elig") |
+      str_detect(outcomes_list, "desig")]
   }
-  
+
   if (!is.null(filter_outcomes)) {
     outcomes_list <- filter_outcomes
   }
-  
-  df_pivot <- df %>% 
-    rename_at(outcomes_list, ~names(outcomes_list)) %>% 
-    pivot_longer(names(outcomes_list), names_to = "outcomes", values_to = "employment") %>% 
+
+  df_pivot <- df %>%
+    rename_at(outcomes_list, ~ names(outcomes_list)) %>%
+    pivot_longer(names(outcomes_list), names_to = "outcomes", values_to = "employment") %>%
     filter(year > 2014)
-  
-  plot <- df_pivot %>% 
-      ggplot(aes(x = year, y = employment)) +
-      stat_summary(aes(color=if_else(treatment == 1, "Selected", "Eligible")), geom = "point", fun.y = mean) +
-      geom_smooth(data=df_pivot %>% 
-                    filter(post == 0),
-                  aes(color=if_else(treatment == 1, "Selected", "Eligible")), method='lm', se=F) +
-    geom_smooth(data=df_pivot %>% 
-                    filter(post == 1),
-                  aes(color=if_else(treatment == 1, "Selected", "Eligible")), method='lm', se=F) +
-      geom_vline(aes(xintercept=2017.5), color = 'gray', linetype = 'dashed') +
-      theme_classic() +
-      labs(color = "Designation",
-           y = "Growth (percentage points)",
-           x = "Year") +
-      facet_wrap(~outcomes, nrow=1, scales = "free") +
-    scale_color_manual(values= wes_palette("Moonrise2", n = 2))
-  
+
+  plot <- df_pivot %>%
+    ggplot(aes(x = year, y = employment)) +
+    stat_summary(aes(color = if_else(treatment == 1, "Selected", "Eligible")), geom = "point", fun.y = mean) +
+    geom_smooth(
+      data = df_pivot %>%
+        filter(post == 0),
+      aes(color = if_else(treatment == 1, "Selected", "Eligible")), method = "lm", se = F
+    ) +
+    geom_smooth(
+      data = df_pivot %>%
+        filter(post == 1),
+      aes(color = if_else(treatment == 1, "Selected", "Eligible")), method = "lm", se = F
+    ) +
+    geom_vline(aes(xintercept = 2017.5), color = "gray", linetype = "dashed") +
+    theme_classic() +
+    labs(
+      color = "Designation",
+      y = "Growth (percentage points)",
+      x = "Year"
+    ) +
+    facet_wrap(~outcomes, nrow = 1, scales = "free") +
+    scale_color_manual(values = wes_palette("Moonrise2", n = 2))
+
   plot %>%
     print()
-  
-  ggsave(paste0("../2_output/", outcome_type, "_", type, "_",
-  df_type, filter_outcomes_lab, "_parallel_trends.png"),
-         width = 11)
+
+  ggsave(
+    paste0(
+      "../2_output/", outcome_type, "_", type, "_",
+      df_type, filter_outcomes_lab, "_parallel_trends.png"
+    ),
+    width = 11
+  )
 }
 ```
 
 
 ```{r}
-vars_g1 <- c("Total employment\n(Residence Area Characteristics)" =
-               "C000rac_pctchange",
-             "Total employment\n(Workplace Area Characteristics)" = "C000wac_pctchange")
+vars_g1 <- c(
+  "Total employment\n(Residence Area Characteristics)" =
+    "C000rac_pctchange",
+  "Total employment\n(Workplace Area Characteristics)" = "C000wac_pctchange"
+)
 generate_parallel_trends_plot(df = topcommutezones, "pct", "rac", "commute", vars_g1, "total")
 
-vars_g2 <- c("Jobs with earnings\n$1250/month or less" =
-               "CE01rac_pctchange",
-             "Jobs with earnings\n$1251/month to $3333/month" = "CE02rac_pctchange",
-             "Jobs with earnings\ngreater than $3333/month" = "CE03rac_pctchange")
+vars_g2 <- c(
+  "Jobs with earnings\n$1250/month or less" =
+    "CE01rac_pctchange",
+  "Jobs with earnings\n$1251/month to $3333/month" = "CE02rac_pctchange",
+  "Jobs with earnings\ngreater than $3333/month" = "CE03rac_pctchange"
+)
 generate_parallel_trends_plot(df = topcommutezones, "pct", "rac", "commute", vars_g2, "wage")
 
-vars_g3 <- c("Jobs with earnings\n$1250/month or less" =
-               "CE01wac_pctchange",
-             "Jobs with earnings\n$1251/month to $3333/month" = "CE02wac_pctchange",
-             "Jobs with earnings\ngreater than $3333/month" = "CE03wac_pctchange")
+vars_g3 <- c(
+  "Jobs with earnings\n$1250/month or less" =
+    "CE01wac_pctchange",
+  "Jobs with earnings\n$1251/month to $3333/month" = "CE02wac_pctchange",
+  "Jobs with earnings\ngreater than $3333/month" = "CE03wac_pctchange"
+)
 generate_parallel_trends_plot(df = topcommutezones, "pct", "wac", "commute", vars_g3, "wage")
 
-vars_g4 <- c("Jobs for workers who are white" =
-               "CR01rac_pctchange",
-             "Jobs for workers who are Black" = "CR02rac_pctchange",
-             "Jobs for workers of other races" = "CRothrac_pctchange")
+vars_g4 <- c(
+  "Jobs for workers who are white" =
+    "CR01rac_pctchange",
+  "Jobs for workers who are Black" = "CR02rac_pctchange",
+  "Jobs for workers of other races" = "CRothrac_pctchange"
+)
 generate_parallel_trends_plot(df = topcommutezones, "pct", "rac", "commute", vars_g4, "race")
 
-vars_g5 <- c("Jobs for workers who are white" =
-               "CR01wac_pctchange",
-             "Jobs for workers who are Black" = "CR02wac_pctchange",
-             "Jobs for workers of other races" = "CRothwac_pctchange")
+vars_g5 <- c(
+  "Jobs for workers who are white" =
+    "CR01wac_pctchange",
+  "Jobs for workers who are Black" = "CR02wac_pctchange",
+  "Jobs for workers of other races" = "CRothwac_pctchange"
+)
 generate_parallel_trends_plot(df = topcommutezones, "pct", "wac", "commute", vars_g5, "race")
 
-vars_g6 <- c("Jobs for workers who are Hispanic or Latino\n(Residence Area Characteristics)" =
-               "CT02rac_pctchange",
-             "Jobs for workers who are Hispanic or Latino\n(Workplace Area Characteristics)" = "CT02wac_pctchange")
+vars_g6 <- c(
+  "Jobs for workers who are Hispanic or Latino\n(Residence Area Characteristics)" =
+    "CT02rac_pctchange",
+  "Jobs for workers who are Hispanic or Latino\n(Workplace Area Characteristics)" = "CT02wac_pctchange"
+)
 generate_parallel_trends_plot(df = topcommutezones, "pct", "rac", "commute", vars_g6, "eth")
 
-vars_g7 <- c("Live and work in the same tract" =
-               "S000_same_tract_pctchange",
-             "Work in a designated OZ tract" = "S000_desig_pctchange",
-             "Work in an eligible OZ tract" = "S000_elig_pctchange")
-  
+vars_g7 <- c(
+  "Live and work in the same tract" =
+    "S000_same_tract_pctchange",
+  "Work in a designated OZ tract" = "S000_desig_pctchange",
+  "Work in an eligible OZ tract" = "S000_elig_pctchange"
+)
+
 generate_parallel_trends_plot(df = topcommutezones, "pct", "od", "commute", vars_g7, "od")
 ```
 
 ```{r}
 # functions for each model
 pooled_ols1 <- function(outcome, data, covariates) {
-  
   return(lm(paste0(outcome, " ~ treatment:year + year + treatment"),
-               data = data))
+    data = data
+  ))
 }
 
 pooled_ols2 <- function(outcome, data, covariates) {
-  
   return(lm(paste0(outcome, " ~ treatment:year + year + treatment +  ", str_c(covariates, collapse = "+")),
-               data = data))
+    data = data
+  ))
 }
 
 pooled_ols3 <- function(outcome, data, covariates) {
-  
   return(lm(paste0(outcome, " ~ treatment:year + year + treatment +  post + post:year + post:treatment + year:post:treatment +", str_c(covariates, collapse = "+")),
-               data = data))
+    data = data
+  ))
 }
 ```
 
@@ -193,178 +219,205 @@ pooled_ols3 <- function(outcome, data, covariates) {
 ```{r}
 generate_model_output <- function(fit_model, outcome, treat_var, model_type, data, print) {
   sum_fit_plm <- summary(fit_model)
-  coef_names <- sum_fit_plm$coefficients[, 1] %>% 
-      names()
-  coef_vals <- coeftest(fit_model, vcov = vcovCL,
-                                    type = "HC1",
-                                    cluster = data$GEOID)
-  
+  coef_names <- sum_fit_plm$coefficients[, 1] %>%
+    names()
+  coef_vals <- coeftest(fit_model,
+    vcov = vcovCL,
+    type = "HC1",
+    cluster = data$GEOID
+  )
+
   if (print == TRUE) {
-      sum_fit_plm %>% 
-      print() 
-    
-    coef_vals %>% 
+    sum_fit_plm %>%
+      print()
+
+    coef_vals %>%
       print()
   }
-  
+
   coef_pos <- which(treat_var == coef_names)
-  
+
   coef <- round(sum_fit_plm$coefficients[coef_pos, 1], 3)
   se <- round(coef_vals[coef_pos, 2], 3)
   pval <- round(coef_vals[coef_pos, 4], 4)
-  coef_ast <- case_when(pval < 0.01 ~ paste0(coef, "***"),
-                        pval < 0.05 ~ paste0(coef, "**"),
-                        pval < 0.1 ~ paste0(coef, "*"),
-                        TRUE ~ paste0(coef))
-  
-  return(data.frame("outcome" = outcome,
-               "treatment_post" = sum_fit_plm$coefficients[coef_pos, 1],
-               "coef_asterisk" = coef_ast,
-               "se" = se,
-               "pval" = pval,
-               "rsq" = round(sum_fit_plm$r.squared[[1]], 3),
-               "n" = nobs(fit_model),
-               "model_type" = model_type))
+  coef_ast <- case_when(
+    pval < 0.01 ~ paste0(coef, "***"),
+    pval < 0.05 ~ paste0(coef, "**"),
+    pval < 0.1 ~ paste0(coef, "*"),
+    TRUE ~ paste0(coef)
+  )
+
+  return(data.frame(
+    "outcome" = outcome,
+    "treatment_post" = sum_fit_plm$coefficients[coef_pos, 1],
+    "coef_asterisk" = coef_ast,
+    "se" = se,
+    "pval" = pval,
+    "rsq" = round(sum_fit_plm$r.squared[[1]], 3),
+    "n" = nobs(fit_model),
+    "model_type" = model_type
+  ))
 }
 
-run_model_outcome <- function(outcome, models, data, covariates=cov, print=TRUE) {
+run_model_outcome <- function(outcome, models, data, covariates = cov, print = TRUE) {
   covariates <- str_c(covariates, collapse = " + ")
   print(str_c("Running model for ", outcome))
   results <- data.frame()
-  
+
   if ("did1" %in% models) {
     fit_did <- pooled_ols1(outcome, data, covariates)
     results <- bind_rows(results, generate_model_output(fit_did, outcome,
-                                                        "treatment:year", "did1", data, print=print)) 
+      "treatment:year", "did1", data,
+      print = print
+    ))
   }
   if ("did2" %in% models) {
     fit_did <- pooled_ols2(outcome, data, covariates)
     results <- bind_rows(results, generate_model_output(fit_did, outcome,
-                                                        "treatment:year", "did2", data, print=print)) 
+      "treatment:year", "did2", data,
+      print = print
+    ))
   }
   if ("did3" %in% models) {
     fit_did <- pooled_ols3(outcome, data, covariates)
     results <- bind_rows(results, generate_model_output(fit_did, outcome,
-                                                        "treatment:year", "did3", data, print=print)) 
+      "treatment:year", "did3", data,
+      print = print
+    ))
   }
- 
+
   return(results)
 }
 
 models <- c("did1", "did2", "did3")
-run_model_outcome("C000rac_pctchange", models, data = merged_oz, print=T)
+run_model_outcome("C000rac_pctchange", models, data = merged_oz, print = T)
 ```
 
 ```{r}
 format_results <- function(df) {
-  df %>% head() %>% 
+  df %>%
+    head() %>%
     print()
-  df_adj <- df %>% 
-    mutate(pval_adjust_ast = case_when(p_adjust < 0.01 ~ "***",
-                                       p_adjust < 0.05 ~ "**",
-                                       p_adjust < 0.1 ~ "*",
-                                       TRUE ~ "")) %>% 
-    mutate(coef_full = str_c(round(treatment_post, 2), pval_adjust_ast, "\n(", se, ")")) %>% 
-    select(outcome, coef_full, model_type) %>% 
-    pivot_wider(id_cols = "outcome", names_from = "model_type", values_from = "coef_full") %>% 
+  df_adj <- df %>%
+    mutate(pval_adjust_ast = case_when(
+      p_adjust < 0.01 ~ "***",
+      p_adjust < 0.05 ~ "**",
+      p_adjust < 0.1 ~ "*",
+      TRUE ~ ""
+    )) %>%
+    mutate(coef_full = str_c(round(treatment_post, 2), pval_adjust_ast, "\n(", se, ")")) %>%
+    select(outcome, coef_full, model_type) %>%
+    pivot_wider(id_cols = "outcome", names_from = "model_type", values_from = "coef_full") %>%
     select(outcome, did1_adj = did1, did2_adj = did2, did3_adj = did3)
-  
-  df %>% 
-    mutate(coef_full = paste0(coef_asterisk, "\n(", se, ")")) %>% 
-    select(outcome, coef_full, model_type) %>% 
-    pivot_wider(id_cols = "outcome", names_from = "model_type", values_from = "coef_full") %>% 
-    select(outcome, did1, did2, did3) %>% 
-    left_join(df_adj, on = "outcome") %>% 
+
+  df %>%
+    mutate(coef_full = paste0(coef_asterisk, "\n(", se, ")")) %>%
+    select(outcome, coef_full, model_type) %>%
+    pivot_wider(id_cols = "outcome", names_from = "model_type", values_from = "coef_full") %>%
+    select(outcome, did1, did2, did3) %>%
+    left_join(df_adj, on = "outcome") %>%
     select(outcome, did1, did2, did3, did1_adj, did2_adj, did3_adj)
 }
 ```
 
 
 ```{r}
-resultspctcommuting <- bind_rows(map_dfr(pct_outcomes, ~run_model_outcome(., models=c("did1", "did2"), 
-                                                                 data = topcommutezones %>% 
-                                                                 filter(year > 2014 & post == 0), print=F)),
-                                 map_dfr(pct_outcomes, ~run_model_outcome(., models=c("did3"), 
-                                                                 data = topcommutezones %>% 
-                                                                 filter(year > 2014), print=F)))  %>% 
-  group_by(model_type) %>% 
+resultspctcommuting <- bind_rows(
+  map_dfr(pct_outcomes, ~ run_model_outcome(.,
+    models = c("did1", "did2"),
+    data = topcommutezones %>%
+      filter(year > 2014 & post == 0), print = F
+  )),
+  map_dfr(pct_outcomes, ~ run_model_outcome(.,
+    models = c("did3"),
+    data = topcommutezones %>%
+      filter(year > 2014), print = F
+  ))
+) %>%
+  group_by(model_type) %>%
   mutate(p_adjust = p.adjust(pval, method = "BH"))
 resultspctcommuting
 ```
 ```{r}
 resultspctcommuting %>%
-  write_csv(str_glue("../2_output/trends_pct_commute_{date}.csv"), na="")
+  write_csv(str_glue("../2_output/trends_pct_commute_{date}.csv"), na = "")
 
-resultspctcommuting %>% 
-  format_results() %>% 
-  write_csv(str_glue("../2_output/trends_pct_commute_form_{date}.csv"), na="")
+resultspctcommuting %>%
+  format_results() %>%
+  write_csv(str_glue("../2_output/trends_pct_commute_form_{date}.csv"), na = "")
 ```
 
 ```{r}
 ols_balance <- function(outcome, data) {
   return(lm(paste0(outcome, " ~ treatment"),
-               data = data))
+    data = data
+  ))
 }
 
-run_balance_tests <- function(outcome, data, print=TRUE) {
+run_balance_tests <- function(outcome, data, print = TRUE) {
   print(str_c("Running model for ", outcome))
   results <- data.frame()
-  
+
   if ("did" %in% models) {
     fit_did <- ols_balance(outcome, data)
     results <- bind_rows(results, generate_model_output(fit_did, outcome,
-                                                        "treatment", "did", data, print=print)) 
+      "treatment", "did", data,
+      print = print
+    ))
   }
-
-
 }
 
 # balance test
-balance_tests <- map_dfr(c(cov), ~run_balance_tests(., merged_oz %>%
-                                                      filter(year == 2017)))
+balance_tests <- map_dfr(c(cov), ~ run_balance_tests(., merged_oz %>%
+  filter(year == 2017)))
 balance_tests
 
-balance_tests_commuting <- map_dfr(c(cov), ~run_balance_tests(., topcommutezones %>%
-                                                      filter(year == 2017)))
+balance_tests_commuting <- map_dfr(c(cov), ~ run_balance_tests(., topcommutezones %>%
+  filter(year == 2017)))
 balance_tests_commuting
 
-balance_tests_matched <- map_dfr(c(cov), ~run_balance_tests(., matched_data %>%
-                                                      filter(year == 2017)))
+balance_tests_matched <- map_dfr(c(cov), ~ run_balance_tests(., matched_data %>%
+  filter(year == 2017)))
 balance_tests_matched
 ```
 
 ```{r}
 event_years <- c("period1", "period2", "period4", "period5")
-treat_years <- c("treatyearmin3", "treatyearmin2", "treatyearmin1", 
-                                                    "treatyear0", "treatyear1")
+treat_years <- c(
+  "treatyearmin3", "treatyearmin2", "treatyearmin1",
+  "treatyear0", "treatyear1"
+)
 gen_covariates_int <- function(covariates, year_vars) {
-  covariates_list <- map(year_vars, ~str_c(covariates, ":", .)) %>% 
-    unlist() %>% 
+  covariates_list <- map(year_vars, ~ str_c(covariates, ":", .)) %>%
+    unlist() %>%
     str_c(collapse = " + ")
   return(covariates_list)
-    
 }
 
 # event study plots
 event_model <- function(outcome, data, covariates) {
-  form <- paste0(outcome, " ~ treatyearmin3 + treatyearmin2 + ",
-                 "treatyear0 + treatyear1")
-  
-  if (covariates==TRUE) {
+  form <- paste0(
+    outcome, " ~ treatyearmin3 + treatyearmin2 + ",
+    "treatyear0 + treatyear1"
+  )
+
+  if (covariates == TRUE) {
     covariates_list <- gen_covariates_int(cov, event_years)
     form <- paste0(form, "+", covariates_list)
-    
-    mod <- plm(form, 
-               data = data, 
-               index = c("GEOID"), 
-               model = "within", 
-               effect = "individual")
+
+    mod <- plm(form,
+      data = data,
+      index = c("GEOID"),
+      model = "within",
+      effect = "individual"
+    )
   } else {
-    mod <- plm(form, 
-               data = data, 
-               index = c("GEOID", "period"), 
-               model = "within", 
-               effect = "twoways") 
+    mod <- plm(form,
+      data = data,
+      index = c("GEOID", "period"),
+      model = "within",
+      effect = "twoways"
+    )
   }
   return(mod)
 }
@@ -372,78 +425,97 @@ event_model <- function(outcome, data, covariates) {
 generate_event_df <- function(outcome, data, covariates = FALSE) {
   mod <- event_model(outcome, data, covariates)
   mod
-  
-  coef_vals <- coeftest(mod, vcovHC(mod, type = 'HC3', cluster = 'group'))
+
+  coef_vals <- coeftest(mod, vcovHC(mod, type = "HC3", cluster = "group"))
   coef_vals
 
-coef_vals[,] %>% 
-  as_tibble(rownames="year") %>% 
-  filter(year %in% treat_years) %>% 
-  mutate(estimate_ci_high = Estimate + (1.96*`Std. Error`),
-         estimate_ci_low = Estimate - (1.96*`Std. Error`)) %>% 
-  bind_rows(tibble(year = "treatyearmin1", Estimate = 0.00, estimate_ci_high=0,
-                   estimate_ci_low=0)) %>% 
-  mutate(period = c(-3, -2, -1, 0, 1)[match(year, treat_years)],
-         outcome = outcome,
-         covariates = covariates) %>% 
-  select(estimate = Estimate, estimate_ci_high, estimate_ci_low, period, outcome, covariates)
+  coef_vals[, ] %>%
+    as_tibble(rownames = "year") %>%
+    filter(year %in% treat_years) %>%
+    mutate(
+      estimate_ci_high = Estimate + (1.96 * `Std. Error`),
+      estimate_ci_low = Estimate - (1.96 * `Std. Error`)
+    ) %>%
+    bind_rows(tibble(
+      year = "treatyearmin1", Estimate = 0.00, estimate_ci_high = 0,
+      estimate_ci_low = 0
+    )) %>%
+    mutate(
+      period = c(-3, -2, -1, 0, 1)[match(year, treat_years)],
+      outcome = outcome,
+      covariates = covariates
+    ) %>%
+    select(estimate = Estimate, estimate_ci_high, estimate_ci_low, period, outcome, covariates)
 }
 
 
 event_df_pre <- topcommutezones %>%
   filter(year > 2014) %>%
-  mutate(period = case_when(year == 2015 ~ 1,
-                            year == 2016 ~ 2,
-                            year == 2017 ~ 3,
-                            year == 2018 ~ 4,
-                            year == 2019 ~ 5),
-         period1 = if_else(year == 2015, 1, 0),
-         period2 = if_else(year == 2017, 1, 0),
-         period3 = if_else(year == 2016,1, 0),
-         period4 = if_else(year == 2018,1, 0),
-         period5 = if_else(year == 2019,1,0),
-         treatyearmin3 = if_else(treatment == 1 & year == 2015, 1, 0),
-         treatyearmin2 = if_else(treatment == 1 & year == 2017, 1, 0),
-         treatyearmin1 = if_else(treatment == 1 & year == 2016,1, 0),
-         treatyear0 = if_else(treatment == 1 & year == 2018,1, 0),
-         treatyear1 = if_else(treatment == 1 & year == 2019,1,0))
+  mutate(
+    period = case_when(
+      year == 2015 ~ 1,
+      year == 2016 ~ 2,
+      year == 2017 ~ 3,
+      year == 2018 ~ 4,
+      year == 2019 ~ 5
+    ),
+    period1 = if_else(year == 2015, 1, 0),
+    period2 = if_else(year == 2017, 1, 0),
+    period3 = if_else(year == 2016, 1, 0),
+    period4 = if_else(year == 2018, 1, 0),
+    period5 = if_else(year == 2019, 1, 0),
+    treatyearmin3 = if_else(treatment == 1 & year == 2015, 1, 0),
+    treatyearmin2 = if_else(treatment == 1 & year == 2017, 1, 0),
+    treatyearmin1 = if_else(treatment == 1 & year == 2016, 1, 0),
+    treatyear0 = if_else(treatment == 1 & year == 2018, 1, 0),
+    treatyear1 = if_else(treatment == 1 & year == 2019, 1, 0)
+  )
 
 # generate event study plots
-event_df <- bind_rows(map_dfr(pct_outcomes, ~generate_event_df(., event_df_pre, covariates = F)),
-                              map_dfr(pct_outcomes, ~generate_event_df(., event_df_pre, covariates = T)))
+event_df <- bind_rows(
+  map_dfr(pct_outcomes, ~ generate_event_df(., event_df_pre, covariates = F)),
+  map_dfr(pct_outcomes, ~ generate_event_df(., event_df_pre, covariates = T))
+)
 event_df
 
-map_dfr(pct_outcomes[1:2], ~generate_event_df(., event_df_pre, covariates = T))
+map_dfr(pct_outcomes[1:2], ~ generate_event_df(., event_df_pre, covariates = T))
 ```
 
 ```{r}
 generate_event_plot <- function(df, type, vars, vars_lab, sample) {
-  plot <- df %>% 
-    mutate(estimate = if_else(period == -1, 0, estimate)) %>% 
-    filter(outcome %in% vars) %>% 
-    mutate(outcome2 = names(vars)[match(outcome, vars)]) %>% 
-    mutate(type = if_else(covariates == TRUE, "covariates", "no covariates"),
-           type = factor(type, levels = c("no covariates", "covariates"), ordered = T)) %>% 
-    ggplot(aes(period, estimate, color=type)) +
-    #geom_line(linetype='dashed') +
-    geom_point(aes(group = type), position=position_dodge(width=0.8)) + 
-    geom_errorbar(aes(ymin = estimate_ci_low,
-                      ymax = estimate_ci_high, color = type),
-                  position=position_dodge(width=0.8)) +
-    geom_hline(aes(yintercept =0), color='gray', linetype = 'dashed') +
+  plot <- df %>%
+    mutate(estimate = if_else(period == -1, 0, estimate)) %>%
+    filter(outcome %in% vars) %>%
+    mutate(outcome2 = names(vars)[match(outcome, vars)]) %>%
+    mutate(
+      type = if_else(covariates == TRUE, "covariates", "no covariates"),
+      type = factor(type, levels = c("no covariates", "covariates"), ordered = T)
+    ) %>%
+    ggplot(aes(period, estimate, color = type)) +
+    # geom_line(linetype='dashed') +
+    geom_point(aes(group = type), position = position_dodge(width = 0.8)) +
+    geom_errorbar(
+      aes(
+        ymin = estimate_ci_low,
+        ymax = estimate_ci_high, color = type
+      ),
+      position = position_dodge(width = 0.8)
+    ) +
+    geom_hline(aes(yintercept = 0), color = "gray", linetype = "dashed") +
     theme_classic() +
-    labs(y = "Pre-trend test coefficients (base year 2017)")  +
-    facet_wrap(~outcome2, nrow=1, scales = "free") +
-    scale_color_manual(values= wes_palette("Moonrise2", n = 2))
-  
-  plot %>% 
+    labs(y = "Pre-trend test coefficients (base year 2017)") +
+    facet_wrap(~outcome2, nrow = 1, scales = "free") +
+    scale_color_manual(values = wes_palette("Moonrise2", n = 2))
+
+  plot %>%
     print()
 
   ggsave(paste0("../2_output/", vars_lab, "_", type, sample, "_event_study.png"),
-         width=11)
+    width = 11
+  )
 }
 
-generate_event_plot(event_df,"rac", vars_g1, "commute", "total")
+generate_event_plot(event_df, "rac", vars_g1, "commute", "total")
 generate_event_plot(event_df, "rac", vars_g2, "commute", "wage")
 generate_event_plot(event_df, "wac", vars_g3, "commute", "wage")
 generate_event_plot(event_df, "rac", vars_g4, "commute", "race")

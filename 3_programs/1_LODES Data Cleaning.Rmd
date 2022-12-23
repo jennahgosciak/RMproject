@@ -20,39 +20,45 @@ data_dir <- "../0_data"
 
 ```{r}
 get_lodes_yr <- function(states, yr, oz, type, tract = NULL) {
-  df <- grab_lodes(state = states,
-                    year = yr, lodes_type = type,
-                    job_type = "JT00", segment = "S000", agg_geo = "tract")
+  df <- grab_lodes(
+    state = states,
+    year = yr, lodes_type = type,
+    job_type = "JT00", segment = "S000", agg_geo = "tract"
+  )
 
   if (type == "wac") {
     tract <- "w_tract"
   } else if (type == "rac") {
     tract <- "h_tract"
   }
-  
-  df_oz <- df %>% 
-    inner_join(oz, ., by = c("GEOID" = tract)) %>% 
-    mutate(year = if_else(is.na(year), yr, as.double(year))) %>% 
-    verify(LIC == TRUE | CONTIGUOUS == TRUE | CROSS_STATE == TRUE) %>% 
-    verify(DESIGNATED %in% c(TRUE, FALSE)) %>% 
-    mutate(designated_desc = if_else(DESIGNATED==TRUE, "Selected", "Eligible"))
-  
+
+  df_oz <- df %>%
+    inner_join(oz, ., by = c("GEOID" = tract)) %>%
+    mutate(year = if_else(is.na(year), yr, as.double(year))) %>%
+    verify(LIC == TRUE | CONTIGUOUS == TRUE | CROSS_STATE == TRUE) %>%
+    verify(DESIGNATED %in% c(TRUE, FALSE)) %>%
+    mutate(designated_desc = if_else(DESIGNATED == TRUE, "Selected", "Eligible"))
+
   # check uniqueness
   if (type == "wac" | type == "rac") {
     stopifnot(length(unique(df_oz$GEOID)) == nrow(df_oz))
-  } else{
-    df_oz <- df_oz %>% 
-      left_join(oz %>% 
-                  select(GEOID, DESIGNATED) %>% 
-                  rename(w_desig = DESIGNATED),
-                by = c("w_tract" = "GEOID")) %>% 
-      mutate(same_tract = if_else(GEOID == w_tract & !is.na(w_tract), 1, 0)) %>% 
-      mutate(cat = case_when(same_tract == 1 ~ "same_tract",
-                             w_desig == TRUE ~ "desig",
-                             w_desig == FALSE ~ "elig",
-                             is.na(w_desig) ~ "oth")) %>% 
-      group_by(GEOID, year, cat, LIC, CONTIGUOUS, CROSS_STATE) %>% 
-      summarize(across(S000:SI03, sum, na.rm = T)) %>% 
+  } else {
+    df_oz <- df_oz %>%
+      left_join(
+        oz %>%
+          select(GEOID, DESIGNATED) %>%
+          rename(w_desig = DESIGNATED),
+        by = c("w_tract" = "GEOID")
+      ) %>%
+      mutate(same_tract = if_else(GEOID == w_tract & !is.na(w_tract), 1, 0)) %>%
+      mutate(cat = case_when(
+        same_tract == 1 ~ "same_tract",
+        w_desig == TRUE ~ "desig",
+        w_desig == FALSE ~ "elig",
+        is.na(w_desig) ~ "oth"
+      )) %>%
+      group_by(GEOID, year, cat, LIC, CONTIGUOUS, CROSS_STATE) %>%
+      summarize(across(S000:SI03, sum, na.rm = T)) %>%
       pivot_wider(id_cols = c("GEOID", "year", "LIC", "CONTIGUOUS"), names_from = "cat", values_from = c(S000:SI03))
   }
   return(df_oz)
@@ -61,7 +67,7 @@ get_lodes_yr <- function(states, yr, oz, type, tract = NULL) {
 
 ```{r}
 # load oz data
-oz <- read_csv(path(data_dir, "Opportunity_Zone_Eligible_Census_Tracts.csv")) %>% 
+oz <- read_csv(path(data_dir, "Opportunity_Zone_Eligible_Census_Tracts.csv")) %>%
   filter(!is.na(DESIGNATED))
 oz
 ```
@@ -86,7 +92,7 @@ wac_oz_19 <- get_lodes_yr(states, 2019, oz, "wac")
 ## Write WAC data to csv
 ```{r}
 wac_oz <- bind_rows(wac_oz_14, wac_oz_15, wac_oz_16, wac_oz_17, wac_oz_18, wac_oz_19)
-wac_oz %>% 
+wac_oz %>%
   write_csv(path(data_dir, "wac_oz.csv"))
 
 wac_oz
@@ -98,35 +104,37 @@ wac_oz
 # plotting
 plot_df <- function(df, column, desc) {
   column <- enquo(column)
-  
-  df_sum <- df %>% 
-    group_by(year, designated_desc) %>% 
-    summarize(y = sum(!!column, na.rm = TRUE)) 
-  
-  df_sum %>% 
+
+  df_sum <- df %>%
+    group_by(year, designated_desc) %>%
+    summarize(y = sum(!!column, na.rm = TRUE))
+
+  df_sum %>%
     print()
-  
-  plot <- df_sum %>% 
+
+  plot <- df_sum %>%
     ggplot() +
-    geom_line(aes(x = year, y = y,
-                  color = designated_desc, group = designated_desc)) +
+    geom_line(aes(
+      x = year, y = y,
+      color = designated_desc, group = designated_desc
+    )) +
     labs(x = "Year", y = desc, color = "") +
-    theme_classic() 
-  
+    theme_classic()
+
   print(plot)
   ggsave(str_c("../2_output/", desc, ".png"))
 }
 
-wac_oz %>% 
+wac_oz %>%
   plot_df(C000, "Average number of jobs (WAC)")
 
-wac_oz %>% 
+wac_oz %>%
   plot_df(CA01, "Average number of jobs, age less than 29 (WAC)")
 
-wac_oz %>% 
+wac_oz %>%
   plot_df(CE01, "Average number of jobs, less than $1250 a month (WAC)")
 
-wac_oz %>% 
+wac_oz %>%
   plot_df(CE03, "Average number of jobs, greater than $3333 a month (WAC)")
 ```
 
@@ -145,50 +153,50 @@ rac_oz_19 <- get_lodes_yr(states, 2019, oz, "rac")
 ## Write RAC data to csv
 ```{r}
 rac_oz <- bind_rows(rac_oz_14, rac_oz_15, rac_oz_16, rac_oz_17, rac_oz_18, rac_oz_19)
-rac_oz %>% 
+rac_oz %>%
   write_csv(path(data_dir, "rac_oz.csv"))
 ```
 
 ## Plot RAC data over time
 ```{r}
-rac_oz %>% 
+rac_oz %>%
   plot_df(C000, "Average number of jobs (RAC)")
 
-rac_oz %>% 
+rac_oz %>%
   plot_df(CA01, "Average number of jobs, age less than 29 (RAC)")
 
-rac_oz %>% 
+rac_oz %>%
   plot_df(CE01, "Average number of jobs, less than $1250 a month (RAC)")
 
-rac_oz %>% 
+rac_oz %>%
   plot_df(CE03, "Average number of jobs, greater than $3333 a month (RAC)")
 ```
 
 ## Load OD data
 ```{r}
 # load residence area characteristics
-od_oz_14_r <- map_dfr(states, ~get_lodes_yr(., 2014, oz, "od", "h_tract"))
-od_oz_14_r %>% 
+od_oz_14_r <- map_dfr(states, ~ get_lodes_yr(., 2014, oz, "od", "h_tract"))
+od_oz_14_r %>%
   write_csv("../2_output/od_oz_14_r.csv")
 
-od_oz_15_r <- map_dfr(states, ~get_lodes_yr(., 2015, oz, "od", "h_tract"))
-od_oz_15_r %>% 
+od_oz_15_r <- map_dfr(states, ~ get_lodes_yr(., 2015, oz, "od", "h_tract"))
+od_oz_15_r %>%
   write_csv("../2_output/od_oz_15_r.csv")
 
 od_oz_16_r <- get_lodes_yr(states, 2016, oz, "od", "h_tract")
-od_oz_16_r %>% 
+od_oz_16_r %>%
   write_csv("../2_output/od_oz_16_r.csv")
 
 od_oz_17_r <- get_lodes_yr(states, 2017, oz, "od", "h_tract")
-od_oz_17_r %>% 
+od_oz_17_r %>%
   write_csv("../2_output/od_oz_17_r.csv")
 
 od_oz_18_r <- get_lodes_yr(states, 2018, oz, "od", "h_tract")
-od_oz_18_r  %>% 
+od_oz_18_r %>%
   write_csv("../2_output/od_oz_18_r.csv")
 
 od_oz_19_r <- get_lodes_yr(states, 2019, oz, "od", "h_tract")
-od_oz_19_r %>% 
+od_oz_19_r %>%
   write_csv("../2_output/od_oz_19_r.csv")
 ```
 
@@ -202,18 +210,20 @@ od_oz_17_r <- read_csv("../2_output/od_oz_17_r.csv")
 od_oz_18_r <- read_csv("../2_output/od_oz_18_r.csv")
 od_oz_19_r <- read_csv("../2_output/od_oz_19_r.csv")
 
-od_full <- bind_rows(od_oz_14_r, od_oz_15_r,
-                     od_oz_16_r, od_oz_17_r,
-                     od_oz_18_r, od_oz_19_r)
+od_full <- bind_rows(
+  od_oz_14_r, od_oz_15_r,
+  od_oz_16_r, od_oz_17_r,
+  od_oz_18_r, od_oz_19_r
+)
 
-od_full %>% 
-  group_by(year) %>% 
+od_full %>%
+  group_by(year) %>%
   summarize(n = n())
 
 od_full
 
-od_full %>% 
-  write_csv("../0_data/od_data.csv", na="")
+od_full %>%
+  write_csv("../0_data/od_data.csv", na = "")
 ```
 
 

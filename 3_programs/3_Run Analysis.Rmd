@@ -20,18 +20,20 @@ library(wfe)
 library(stats)
 data_dir <- "/Users/adelaide/Documents/GitHub/RMproject"
 
-date <- Sys.Date() %>% 
+date <- Sys.Date() %>%
   str_replace_all("-", "_")
 ```
 
 ```{r}
 # define outcomes and covariates
-outcomes <- c("C000rac", 
-              "C000wac",
-              "CE01rac", "CE01wac", "CE02rac", "CE02wac", "CE03rac", "CE03wac",
-              "CR01rac", "CR01wac", "CR02rac", "CR02wac", "CRothrac", "CRothwac",
-              "CT02rac", "CT02wac",
-              "S000_same_tract", "S000_desig", "S000_elig")
+outcomes <- c(
+  "C000rac",
+  "C000wac",
+  "CE01rac", "CE01wac", "CE02rac", "CE02wac", "CE03rac", "CE03wac",
+  "CR01rac", "CR01wac", "CR02rac", "CR02wac", "CRothrac", "CRothwac",
+  "CT02rac", "CT02wac",
+  "S000_same_tract", "S000_desig", "S000_elig"
+)
 
 log_outcomes <- str_c(outcomes, "_log")
 pct_outcomes <- str_c(outcomes, "_pctchange")
@@ -39,77 +41,89 @@ cov <- c("log_median_household_income", "total_housing", "percent_white", "perce
 ```
 
 ```{r}
-merged_oz <- readRDS("../2_output/analysis_file.RDS") %>% 
-  mutate(year_fact2014 = if_else(year == 2014, 1, 0),
-           year_fact2015 = if_else(year == 2015, 1, 0),
-           year_fact2016 = if_else(year == 2016, 1, 0),
-           year_fact2017 = if_else(year == 2017, 1, 0),
-           year_fact2018 = if_else(year == 2018, 1, 0),
-           year_fact2019 = if_else(year == 2019, 1, 0))
+merged_oz <- readRDS("../2_output/analysis_file.RDS") %>%
+  mutate(
+    year_fact2014 = if_else(year == 2014, 1, 0),
+    year_fact2015 = if_else(year == 2015, 1, 0),
+    year_fact2016 = if_else(year == 2016, 1, 0),
+    year_fact2017 = if_else(year == 2017, 1, 0),
+    year_fact2018 = if_else(year == 2018, 1, 0),
+    year_fact2019 = if_else(year == 2019, 1, 0)
+  )
 merged_oz
 
-merged_oz %>% 
-  group_by(year, DESIGNATED) %>% 
+merged_oz %>%
+  group_by(year, DESIGNATED) %>%
   summarize(n = n())
 
-#only top commuting areas
-topcommutezones <- merged_oz %>% 
-  filter(`Our CBSA`==1)
+# only top commuting areas
+topcommutezones <- merged_oz %>%
+  filter(`Our CBSA` == 1)
 ```
 
 
 ```{r}
 # functions for each model
 pooled_ols <- function(outcome, data, covariates) {
-  return(lm(paste0(outcome, " ~ treatment:post + ",
-  "treatment + post +", covariates),
-               data = data))
+  return(lm(
+    paste0(
+      outcome, " ~ treatment:post + ",
+      "treatment + post +", covariates
+    ),
+    data = data
+  ))
 }
 
 trend_model <- function(outcome, data, covariates) {
-  return(lm(paste0(outcome, " ~ treatment:year:post + treatment:post + treatment:year +",
-  "treatment + year + post +", covariates),
-               data = data))
-  
+  return(lm(
+    paste0(
+      outcome, " ~ treatment:year:post + treatment:post + treatment:year +",
+      "treatment + year + post +", covariates
+    ),
+    data = data
+  ))
 }
 
 
 twfe_model <- function(outcome, data, covariates) {
-  return(plm(paste0(outcome, " ~ post_treatment"), 
-               data = data, 
-               index = c("GEOID", "year"), 
-               model = "within", 
-               effect = "twoways"))
-  
+  return(plm(paste0(outcome, " ~ post_treatment"),
+    data = data,
+    index = c("GEOID", "year"),
+    model = "within",
+    effect = "twoways"
+  ))
 }
 
 gen_covariates_int <- function(covariates, year_vars) {
-  covariates_list <- map(year_vars, ~str_c(covariates, ":", .)) %>% 
-    unlist() %>% 
+  covariates_list <- map(year_vars, ~ str_c(covariates, ":", .)) %>%
+    unlist() %>%
     str_c(collapse = " + ")
   return(covariates_list)
-    
 }
 
 twfe_model_covariates <- function(outcome, data, covariates) {
   covariates_list <- gen_covariates_int(covariates, str_c("year_fact", c(2014:2019)))
-  return(plm(paste0(outcome, " ~ post_treatment + ", covariates_list), 
-               data = data, 
-               index = c("GEOID"), 
-               model = "within", 
-               effect = "individual"))
-  
+  return(plm(paste0(outcome, " ~ post_treatment + ", covariates_list),
+    data = data,
+    index = c("GEOID"),
+    model = "within",
+    effect = "individual"
+  ))
 }
 
 event_model <- function(outcome, data) {
-  mod <- plm(paste0(outcome, " ~ treatment:year_fact2014 + treatment:year_fact2015 + ",
-                    "treatment:year_fact2016 + treatment:year_fact2018 + treatment:year_fact2019 + ",
-                    "year_fact2014 + year_fact2015 + year_fact2016 + year_fact2018 + year_fact2019"), 
-               data = data, 
-               index = c("GEOID"), 
-               model = "within", 
-               effect = "individual")
-  
+  mod <- plm(
+    paste0(
+      outcome, " ~ treatment:year_fact2014 + treatment:year_fact2015 + ",
+      "treatment:year_fact2016 + treatment:year_fact2018 + treatment:year_fact2019 + ",
+      "year_fact2014 + year_fact2015 + year_fact2016 + year_fact2018 + year_fact2019"
+    ),
+    data = data,
+    index = c("GEOID"),
+    model = "within",
+    effect = "individual"
+  )
+
   return(mod)
 }
 ```
@@ -119,112 +133,135 @@ generate_model_output <- function(fit_model, outcome, treat_var, model_type, dat
   sum_fit_plm <- summary(fit_model)
 
   if (model_type %in% c("twfe", "twfe_cov", "event")) {
-    coef_names <- sum_fit_plm$coefficients %>% 
-          row.names()
-    
-    coef_vals <- coeftest(fit_model,
-                        vcovHC(fit_model, type = 'HC3', cluster = 'group'))
+    coef_names <- sum_fit_plm$coefficients %>%
+      row.names()
+
+    coef_vals <- coeftest(
+      fit_model,
+      vcovHC(fit_model, type = "HC3", cluster = "group")
+    )
   } else {
-    coef_names <- sum_fit_plm$coefficients[, 1] %>% 
+    coef_names <- sum_fit_plm$coefficients[, 1] %>%
       names()
-    coef_vals <- coeftest(fit_model, vcov = vcovCL,
-                                    type = "HC1",
-                                    cluster = data$GEOID)
+    coef_vals <- coeftest(fit_model,
+      vcov = vcovCL,
+      type = "HC1",
+      cluster = data$GEOID
+    )
   }
   if (print == TRUE) {
     print(str_c("Running ", model_type, " model for ", outcome))
-    coef_vals %>% 
+    coef_vals %>%
       print()
   }
-  
+
   coef_pos <- which(treat_var == coef_names)
-  
+
   coef <- round(sum_fit_plm$coefficients[coef_pos, 1], 3)
   se <- round(coef_vals[coef_pos, 2], 3)
   pval <- round(coef_vals[coef_pos, 4], 4)
-  coef_ast <- case_when(pval < 0.01 ~ paste0(coef, "***"),
-                        pval < 0.05 ~ paste0(coef, "**"),
-                        pval < 0.1 ~ paste0(coef, "*"),
-                        TRUE ~ paste0(coef))
-  
-  return(data.frame("outcome" = outcome,
-               "treatment_post" = sum_fit_plm$coefficients[coef_pos, 1],
-               "coef_asterisk" = coef_ast,
-               "se" = se,
-               "pval" = pval,
-               "rsq" = round(sum_fit_plm$r.squared[[1]], 3),
-               "n" = nobs(fit_model),
-               "model_type" = model_type))
+  coef_ast <- case_when(
+    pval < 0.01 ~ paste0(coef, "***"),
+    pval < 0.05 ~ paste0(coef, "**"),
+    pval < 0.1 ~ paste0(coef, "*"),
+    TRUE ~ paste0(coef)
+  )
+
+  return(data.frame(
+    "outcome" = outcome,
+    "treatment_post" = sum_fit_plm$coefficients[coef_pos, 1],
+    "coef_asterisk" = coef_ast,
+    "se" = se,
+    "pval" = pval,
+    "rsq" = round(sum_fit_plm$r.squared[[1]], 3),
+    "n" = nobs(fit_model),
+    "model_type" = model_type
+  ))
 }
 
-run_model_outcome <- function(outcome, models, data=merged_oz, covariates=cov, print=TRUE) {
+run_model_outcome <- function(outcome, models, data = merged_oz, covariates = cov, print = TRUE) {
   covariates_orig <- covariates
   covariates <- str_c(covariates, collapse = " + ")
   results <- data.frame()
   if ("twfe" %in% models) {
     fit_plm <- twfe_model(outcome, data, covariates)
     results <- bind_rows(results, generate_model_output(fit_plm, outcome,
-                                                        "post_treatment", "twfe", data, print=print)) 
+      "post_treatment", "twfe", data,
+      print = print
+    ))
   }
   if ("twfe_cov" %in% models) {
     fit_plm <- twfe_model_covariates(outcome, data, covariates_orig)
     results <- bind_rows(results, generate_model_output(fit_plm, outcome,
-                                                        "post_treatment", "twfe_cov", data, print=print)) 
+      "post_treatment", "twfe_cov", data,
+      print = print
+    ))
   }
   if ("did" %in% models) {
     fit_did <- pooled_ols(outcome, data, covariates)
     results <- bind_rows(results, generate_model_output(fit_did, outcome,
-                                                        "treatment:post", "did", data, print=print)) 
+      "treatment:post", "did", data,
+      print = print
+    ))
   }
   if ("time_trend" %in% models) {
     fit_trend_lm <- trend_model(outcome, data, covariates)
     results <- bind_rows(results, generate_model_output(fit_trend_lm, outcome,
-                                                        "treatment:year:post", "time_trend", data, print=print)) 
+      "treatment:year:post", "time_trend", data,
+      print = print
+    ))
   }
   if ("event" %in% models) {
     fit_trend_lm <- event_model(outcome, data)
     results <- bind_rows(results, generate_model_output(fit_trend_lm, outcome,
-                                                        "treatment:year_fact2019", "event", data, print=print)) 
+      "treatment:year_fact2019", "event", data,
+      print = print
+    ))
   }
   return(results)
 }
 
 models <- c("did", "twfe_cov", "twfe", "event")
-# run_model_outcome("C000rac_pctchange", models,  data = matched_data %>% 
+# run_model_outcome("C000rac_pctchange", models,  data = matched_data %>%
 #                     filter(year > 2014), print=T)
 ```
 
 ```{r}
 format_results <- function(df) {
   df %>% head()
-  df_adj <- df %>% 
-    mutate(pval_adjust_ast = case_when(p_adjust < 0.01 ~ "***",
-                                       p_adjust < 0.05 ~ "**",
-                                       p_adjust < 0.1 ~ "*",
-                                       TRUE ~ "")) %>% 
-    mutate(coef_full = str_c(round(treatment_post, 2), pval_adjust_ast, "\n(", se, ")")) %>% 
-    select(outcome, coef_full, model_type) %>% 
-    pivot_wider(id_cols = "outcome", names_from = "model_type", values_from = "coef_full") %>% 
+  df_adj <- df %>%
+    mutate(pval_adjust_ast = case_when(
+      p_adjust < 0.01 ~ "***",
+      p_adjust < 0.05 ~ "**",
+      p_adjust < 0.1 ~ "*",
+      TRUE ~ ""
+    )) %>%
+    mutate(coef_full = str_c(round(treatment_post, 2), pval_adjust_ast, "\n(", se, ")")) %>%
+    select(outcome, coef_full, model_type) %>%
+    pivot_wider(id_cols = "outcome", names_from = "model_type", values_from = "coef_full") %>%
     select(outcome, did_adj = did, twfe_adj = twfe, twfe_cov_adj = twfe_cov)
-  
-  df %>% 
-    mutate(coef_full = paste0(coef_asterisk, "\n(", se, ")")) %>% 
-    select(outcome, coef_full, model_type) %>% 
-    pivot_wider(id_cols = "outcome", names_from = "model_type", values_from = "coef_full") %>% 
-    select(outcome, did, twfe, twfe_cov) %>% 
-    left_join(df_adj, on = "outcome") %>% 
+
+  df %>%
+    mutate(coef_full = paste0(coef_asterisk, "\n(", se, ")")) %>%
+    select(outcome, coef_full, model_type) %>%
+    pivot_wider(id_cols = "outcome", names_from = "model_type", values_from = "coef_full") %>%
+    select(outcome, did, twfe, twfe_cov) %>%
+    left_join(df_adj, on = "outcome") %>%
     select(outcome, did, twfe, twfe_cov, did_adj, twfe_adj, twfe_cov_adj)
-  
 }
 ```
 
 ```{r}
-#results top commuting areas
-results <- map_dfr(c(pct_outcomes), ~run_model_outcome(., models=c("twfe", "twfe_cov",
-                                                                   "did"), 
-                                                       data = topcommutezones %>% 
-                                                         filter(year > 2014), print=FALSE)) %>% 
-  group_by(model_type) %>% 
+# results top commuting areas
+results <- map_dfr(c(pct_outcomes), ~ run_model_outcome(.,
+  models = c(
+    "twfe", "twfe_cov",
+    "did"
+  ),
+  data = topcommutezones %>%
+    filter(year > 2014), print = FALSE
+)) %>%
+  group_by(model_type) %>%
   mutate(p_adjust = p.adjust(pval, method = "BH"))
 results
 ```
@@ -232,34 +269,40 @@ results
 ```{r}
 # save to output
 results %>%
-  write_csv(str_glue("../2_output/results_pct_commute_{date}.csv"), na="")
+  write_csv(str_glue("../2_output/results_pct_commute_{date}.csv"), na = "")
 
-results %>% 
-  format_results() %>% 
-  write_csv(str_glue("../2_output/results_pct_commute_form_{date}.csv"), na="")
+results %>%
+  format_results() %>%
+  write_csv(str_glue("../2_output/results_pct_commute_form_{date}.csv"), na = "")
 ```
 
 ```{r}
 # placebo test whole sample
-placebo_df <- merged_oz %>% 
-  filter(post == 0) %>% 
+placebo_df <- merged_oz %>%
+  filter(post == 0) %>%
   select(-c(post, post_treatment)) %>%
-  mutate(post = if_else(year >= 2016, 1, 0),
-         post_treatment = post*treatment)
+  mutate(
+    post = if_else(year >= 2016, 1, 0),
+    post_treatment = post * treatment
+  )
 ```
 
 ```{r}
 # placebo test commuting sample pct
-placebo_df_commute <- topcommutezones %>% 
-  filter(post == 0) %>% 
+placebo_df_commute <- topcommutezones %>%
+  filter(post == 0) %>%
   select(-c(post, post_treatment)) %>%
-  mutate(post = if_else(year >= 2016, 1, 0),
-         post_treatment = post*treatment)
+  mutate(
+    post = if_else(year >= 2016, 1, 0),
+    post_treatment = post * treatment
+  )
 
-placebo_results <- map_dfr(c(pct_outcomes), ~run_model_outcome(., models=c("did", "twfe", "twfe_cov"), 
-                                                               data = placebo_df_commute,
-                                                    print=FALSE)) %>% 
-  group_by(model_type) %>% 
+placebo_results <- map_dfr(c(pct_outcomes), ~ run_model_outcome(.,
+  models = c("did", "twfe", "twfe_cov"),
+  data = placebo_df_commute,
+  print = FALSE
+)) %>%
+  group_by(model_type) %>%
   mutate(p_adjust = p.adjust(pval, method = "BH"))
 
 placebo_results
@@ -267,12 +310,12 @@ placebo_results
 
 ```{r}
 # save to output
-placebo_results %>% 
-  write_csv(str_glue("../2_output/placebo_pct_commute_{date}.csv"), na="")
+placebo_results %>%
+  write_csv(str_glue("../2_output/placebo_pct_commute_{date}.csv"), na = "")
 
-placebo_results %>% 
-  format_results() %>% 
-  write_csv(str_glue("../2_output/placebo_pct_commute_form_{date}.csv"), na="")
+placebo_results %>%
+  format_results() %>%
+  write_csv(str_glue("../2_output/placebo_pct_commute_form_{date}.csv"), na = "")
 ```
 
 
