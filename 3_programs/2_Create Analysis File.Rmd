@@ -17,7 +17,7 @@ data_dir <- "/Users/adelaide/Documents/GitHub/RMproject"
 
 ```{r}
 # load acs
-acs_oz <- read_csv(str_glue("../0_data/acs_oz_data.csv")) %>% 
+acs_oz <- read_csv(str_glue("../0_data/acs_oz_data.csv")) %>%
   rename(acs_year = year)
 acs_oz
 ```
@@ -28,105 +28,115 @@ rac_oz
 wac_oz <- read_csv(str_glue("../0_data/wac_oz.csv"))
 wac_oz
 
-od_oz <-read_csv(str_glue("../0_data/od_data.csv"))
+od_oz <- read_csv(str_glue("../0_data/od_data.csv"))
 od_oz
 ```
 ```{r}
-rac_clean <- rac_oz %>% 
-  select(GEOID, year, C000:CS02) %>% 
-  mutate(GEOID = as.numeric(GEOID))  %>% 
-  rename_at(vars(C000:CS02), ~str_c(., "rac"))
+rac_clean <- rac_oz %>%
+  select(GEOID, year, C000:CS02) %>%
+  mutate(GEOID = as.numeric(GEOID)) %>%
+  rename_at(vars(C000:CS02), ~ str_c(., "rac"))
 
-wac_clean <- wac_oz %>% 
-  select(GEOID, year, C000:CFS05) %>% 
-  mutate(GEOID = as.numeric(GEOID)) %>% 
-  rename_at(vars(C000:CFS05), ~str_c(., "wac"))
+wac_clean <- wac_oz %>%
+  select(GEOID, year, C000:CFS05) %>%
+  mutate(GEOID = as.numeric(GEOID)) %>%
+  rename_at(vars(C000:CFS05), ~ str_c(., "wac"))
 
-od_clean <- od_oz %>% 
-  select(GEOID, year, S000_desig:SI03_same_tract) %>% 
+od_clean <- od_oz %>%
+  select(GEOID, year, S000_desig:SI03_same_tract) %>%
   mutate(GEOID = as.numeric(GEOID))
 ```
 
 
 ```{r}
-merged_oz <- rac_clean %>% 
-  left_join(wac_clean, by = c("year", "GEOID")) %>% 
-    left_join(od_clean, by = c("year", "GEOID")) %>% 
-  left_join(acs_oz, ., by = "GEOID") %>% 
-  mutate(treatment = as.numeric(DESIGNATED),
-         # this should be if the year is 2019
-         post = if_else(year == 2019, 1, 0),
-         year_fact = factor(year, levels = c(2014:2019)),
-         geoid_fact = factor(GEOID))
+merged_oz <- rac_clean %>%
+  left_join(wac_clean, by = c("year", "GEOID")) %>%
+  left_join(od_clean, by = c("year", "GEOID")) %>%
+  left_join(acs_oz, ., by = "GEOID") %>%
+  mutate(
+    treatment = as.numeric(DESIGNATED),
+    # this should be if the year is 2019
+    post = if_else(year == 2019, 1, 0),
+    year_fact = factor(year, levels = c(2014:2019)),
+    geoid_fact = factor(GEOID)
+  )
 
-merged_oz %>% 
-  group_by(year, post, treatment) %>% 
+merged_oz %>%
+  group_by(year, post, treatment) %>%
   summarize(n = n())
 ```
 ```{r}
-merged_oz <- merged_oz %>% 
-  mutate(CRothrac = rowSums(select(., c(CR03rac, CR04rac, CR05rac, CR07rac)), na.rm = T),
-         CRothwac = rowSums(select(., c(CR03wac, CR04wac, CR05wac, CR07wac)), na.rm = T)) %>% 
-  mutate(across(C000rac:CRothwac, ~if_else(is.na(.), 0, as.double(.)))) %>% 
-  mutate(across(C000rac:CRothwac, .fns = list(log = ~log(if_else(. == 0, 1, as.double(.)))), .names = "{.col}_{.fn}"))  %>% 
-  arrange(GEOID, year) %>% 
-  group_by(GEOID) %>% 
-  arrange(year, .by_group = TRUE) %>% 
-  mutate(across(C000rac:CRothwac, .fns = lst(pctchange = ~if_else(dplyr::lag(.) > 0,
-                                                                  ((./dplyr::lag(.) - 1) * 100), 0)),
-                                             .names = "{.col}_{.fn}")) %>%
-  ungroup() %>% 
-  mutate(post_treatment = post*treatment) %>% 
-  mutate(percent_poverty = poverty / population) %>% 
-  mutate(percent_white = white_population / population) %>% 
-  mutate(percent_postsec = (associate + bachelor + professional_school + doctoral) / population) %>% 
-  mutate(minutes_commute = (minutes_commute) / employed_population) %>% 
-  mutate(percent_rent = (renter_occupied) / total_housing) %>% 
-  mutate(percent_hc_covered = (native_born_hc_covered) / native_born) %>% 
-  mutate(log_median_earnings = log(median_earnings)) %>% 
-  mutate(log_median_household_income = log(median_household_income)) %>% 
-  mutate(log_median_gross_rent = log(median_gross_rent)) %>% 
-  mutate(percent_suplemental_income = supplemental_income / population) %>% 
-  mutate(percent_employed = employed_population / population) %>% 
-  filter(!is.na(GEOID) & !is.na(year)) %>% 
+merged_oz <- merged_oz %>%
+  mutate(
+    CRothrac = rowSums(select(., c(CR03rac, CR04rac, CR05rac, CR07rac)), na.rm = T),
+    CRothwac = rowSums(select(., c(CR03wac, CR04wac, CR05wac, CR07wac)), na.rm = T)
+  ) %>%
+  mutate(across(C000rac:CRothwac, ~ if_else(is.na(.), 0, as.double(.)))) %>%
+  mutate(across(C000rac:CRothwac, .fns = list(log = ~ log(if_else(. == 0, 1, as.double(.)))), .names = "{.col}_{.fn}")) %>%
+  arrange(GEOID, year) %>%
+  group_by(GEOID) %>%
+  arrange(year, .by_group = TRUE) %>%
+  mutate(across(C000rac:CRothwac,
+    .fns = lst(pctchange = ~ if_else(dplyr::lag(.) > 0,
+      ((. / dplyr::lag(.) - 1) * 100), 0
+    )),
+    .names = "{.col}_{.fn}"
+  )) %>%
+  ungroup() %>%
+  mutate(post_treatment = post * treatment) %>%
+  mutate(percent_poverty = poverty / population) %>%
+  mutate(percent_white = white_population / population) %>%
+  mutate(percent_postsec = (associate + bachelor + professional_school + doctoral) / population) %>%
+  mutate(minutes_commute = (minutes_commute) / employed_population) %>%
+  mutate(percent_rent = (renter_occupied) / total_housing) %>%
+  mutate(percent_hc_covered = (native_born_hc_covered) / native_born) %>%
+  mutate(log_median_earnings = log(median_earnings)) %>%
+  mutate(log_median_household_income = log(median_household_income)) %>%
+  mutate(log_median_gross_rent = log(median_gross_rent)) %>%
+  mutate(percent_suplemental_income = supplemental_income / population) %>%
+  mutate(percent_employed = employed_population / population) %>%
+  filter(!is.na(GEOID) & !is.na(year)) %>%
   filter((CONTIGUOUS == FALSE & DESIGNATED == FALSE) | DESIGNATED == TRUE) %>%
   mutate(C000rac_rate = if_else(population > 0, C000rac / population, 0))
 
 # creating state and county code vars
 # making GEOID a string with leading 0s
-merged_oz <- merged_oz %>% 
-  mutate(GEOID = str_pad(GEOID, 11, pad = "0"),
-         STATE = substr(GEOID, 1, 2),
-         COUNTY = substr(GEOID, 3, 5))
+merged_oz <- merged_oz %>%
+  mutate(
+    GEOID = str_pad(GEOID, 11, pad = "0"),
+    STATE = substr(GEOID, 1, 2),
+    COUNTY = substr(GEOID, 3, 5)
+  )
 ```
 
 ```{r}
-#Load MSA
-MSA_2018 <-  read_excel("../0_data/list1_Sep_2018.xlsx")
+# Load MSA
+MSA_2018 <- read_excel("../0_data/list1_Sep_2018.xlsx")
 
-MSA_2018 <- MSA_2018 %>% 
-  rename(STATE = `FIPS State Code`, COUNTY = `FIPS County Code`) %>% 
-  select( `Metropolitan Division Code`,`Metropolitan Division Title`,STATE, COUNTY, `Our CBSA`)
+MSA_2018 <- MSA_2018 %>%
+  rename(STATE = `FIPS State Code`, COUNTY = `FIPS County Code`) %>%
+  select(`Metropolitan Division Code`, `Metropolitan Division Title`, STATE, COUNTY, `Our CBSA`)
 
-merged_oz <-  merged_oz %>% 
+merged_oz <- merged_oz %>%
   left_join(MSA_2018, by = c("STATE", "COUNTY"))
 ```
 
 ```{r}
-#Load Urban
-urban <-  read_excel("../0_data/urbaninstitute_tractlevelozanalysis_update01142021.xlsx") %>% 
-  select( geoid, dec_score, SE_Flag, vacancyrate, pctunder18, pctover64) %>% 
-  rename(GEOID = geoid)
+# Load Urban
+urban <- read_excel("../0_data/urbaninstitute_tractlevelozanalysis_update01142021.xlsx") %>%
+  select(geoid, dec_score, SE_Flag, vacancyrate, pctunder18, pctover64) %>%
+  rename(GEOID = geoid) %>%
+  mutate(SE_Flag = replace_na(SE_Flag, 0))
 
-merged_oz <-  merged_oz %>% 
+merged_oz <- merged_oz %>%
   left_join(urban, by = c("GEOID"))
 ```
 
 ```{r}
-merged_oz %>% 
+merged_oz %>%
   saveRDS("../2_output/analysis_file.RDS")
 
-merged_oz %>% 
+merged_oz %>%
   write_csv("../2_output/analysis_file.csv", na = "")
 ```
 
